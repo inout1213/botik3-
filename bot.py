@@ -8,7 +8,8 @@ import logging
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import (
     Message, CallbackQuery, LabeledPrice,
-    PreCheckoutQuery, InlineKeyboardMarkup, InlineKeyboardButton
+    PreCheckoutQuery, InlineKeyboardMarkup, InlineKeyboardButton,
+    BufferedInputFile
 )
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -357,8 +358,7 @@ async def successful_payment(message: Message):
                 with open(item["pdf_path"], "rb") as pdf:
                     await bot.send_document(
                         message.chat.id,
-                        document=pdf,
-                        filename=f"{item['title']}.pdf",
+                        document=BufferedInputFile(pdf.read(), filename=f"{item['title']}.pdf"),
                         caption=f"📖 {item['title']} | BZH Academy"
                     )
             except FileNotFoundError:
@@ -384,8 +384,7 @@ async def successful_payment(message: Message):
                     with open(item["pdf_path"], "rb") as pdf:
                         await bot.send_document(
                             message.chat.id,
-                            document=pdf,
-                            filename=f"{item['title']}.pdf",
+                            document=BufferedInputFile(pdf.read(), filename=f"{item['title']}.pdf"),
                             caption=f"📖 {item['title']} | BZH Academy"
                         )
                 except FileNotFoundError:
@@ -588,8 +587,7 @@ async def send_reward(callback: CallbackQuery):
         with open(item["pdf_path"], "rb") as pdf:
             await bot.send_document(
                 callback.from_user.id,
-                document=pdf,
-                filename=f"{item['title']}.pdf",
+                document=BufferedInputFile(pdf.read(), filename=f"{item['title']}.pdf"),
                 caption=f"🎁 Награда за стрик · {item['title']} | BZH Academy"
             )
     except FileNotFoundError:
