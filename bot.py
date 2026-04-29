@@ -5,6 +5,7 @@ BZH Academy — Telegram Sales Bot
 
 import asyncio
 import logging
+import random
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import (
     Message, CallbackQuery, LabeledPrice,
@@ -22,15 +23,27 @@ logger = logging.getLogger(__name__)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
+WELCOME_TEXTS = [
+    "Ты не сломан. Тебя просто никто не учил работать с собой.",
+    "Все инструменты уже существуют. Просто никто не дал их тебе.",
+    "Проблема не в силе воли. Проблема в том, что мозг работает не так, как ты думаешь.",
+    "Ты уже пробовал. Не сработало. Потому что метод был не тот.",
+    "Это не слабость. Это просто отсутствие нужных инструментов.",
+    "Большинство проблем в голове решаемы. Просто никто не объяснил как.",
+    "Не мотивация. Не сила воли. Просто правильная система.",
+]
+
 
 # ─── Клавиатуры ────────────────────────────────────────────────────────────────
 
 def main_menu() -> InlineKeyboardMarkup:
     buttons = [
-        [InlineKeyboardButton(text="📖 Выбрать воркбук", callback_data="catalog")],
-        [InlineKeyboardButton(text="🔑 Библиотека — все сразу", callback_data="subscription")],
-        [InlineKeyboardButton(text="🔥 Мой стрик", callback_data="streak")],
-        [InlineKeyboardButton(text="💬 О проекте", callback_data="about")],
+        [InlineKeyboardButton(text="Не могу начать", callback_data="search_не могу начать")],
+        [InlineKeyboardButton(text="Тревога и страх", callback_data="search_тревога")],
+        [InlineKeyboardButton(text="Выгорел, нет сил", callback_data="search_выгорел")],
+        [InlineKeyboardButton(text="Не уверен в себе", callback_data="search_не уверен")],
+        [InlineKeyboardButton(text="Конфликты и люди", callback_data="search_конфликт")],
+        [InlineKeyboardButton(text="Все протоколы →", callback_data="catalog")],
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -93,15 +106,14 @@ def back_button() -> InlineKeyboardMarkup:
 
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
-    name = message.from_user.first_name
+    phrase = random.choice(WELCOME_TEXTS)
     await message.answer(
-        f"Привет, {name} 👋\n\n"
-        f"Это *BZH Academy* — практические воркбуки для тех, кто хочет думать чище и действовать увереннее.\n\n"
-        f"📖 Мышление · Решения · Устойчивость · Продуктивность\n\n"
-        f"Выбери, с чего начать:",
+        f"{phrase}\n\n"
+        f"_BZH Academy — протоколы для тех, кто хочет разобраться._\n\n"
+        f"Что мешает прямо сейчас?",
         parse_mode="Markdown",
         reply_markup=main_menu()
-)
+    )
 
 
 @dp.message(Command("admin"))
@@ -121,8 +133,12 @@ async def cmd_admin(message: Message):
 
 @dp.callback_query(F.data == "back_main")
 async def back_main(callback: CallbackQuery):
+    phrase = random.choice(WELCOME_TEXTS)
     await callback.message.edit_text(
-        "Выбирай, что тебя интересует:",
+        f"{phrase}\n\n"
+        f"_BZH Academy — протоколы для тех, кто хочет разобраться._\n\n"
+        f"Что мешает прямо сейчас?",
+        parse_mode="Markdown",
         reply_markup=main_menu()
     )
     await callback.answer()
