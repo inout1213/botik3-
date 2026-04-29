@@ -44,8 +44,6 @@ PROBLEM_SEARCH = {
 }
 
 # ─── Каталог воркбуков ──────────────────────────────────────────────────────────
-# price — в Telegram Stars (1 Stars ≈ 0.013 USD)
-# pdf_path — путь к PDF-файлу на сервере
 CATALOG = {
     "uncertainty": {
         "emoji": "🌫",
@@ -57,7 +55,7 @@ CATALOG = {
             "когда ответов нет."
         ),
         "price": 1,
-        "pdf_path": "pdfs/workbook_uncertainty.pdf",
+        "pdf_path": "pdfs/НЕОПРЕДЕЛЁННОСТЬ.pdf",
     },
     "productivity": {
         "emoji": "⚡",
@@ -68,7 +66,7 @@ CATALOG = {
             "Внутри: система, которая реально работает — без силы воли и мотивации."
         ),
         "price": 375,
-        "pdf_path": "pdfs/productivity_workbook.pdf",
+        "pdf_path": "pdfs/ПРОДУКТИВНОСТЬ.pdf",
     },
     "procrastination": {
         "emoji": "⏳",
@@ -79,7 +77,7 @@ CATALOG = {
             "Внутри: нейробиология откладывания и система, которая реально работает."
         ),
         "price": 375,
-        "pdf_path": "pdfs/procrastination_workbook.pdf",
+        "pdf_path": "pdfs/ПРОКРАСТИНАЦИЯ.pdf",
     },
     "imposter": {
         "emoji": "🎭",
@@ -90,7 +88,7 @@ CATALOG = {
             "Внутри: почему мозг мешает присвоить свой успех — и как это исправить."
         ),
         "price": 375,
-        "pdf_path": "pdfs/imposter_workbook.pdf",
+        "pdf_path": "pdfs/САМОЗВАНЕЦ.pdf",
     },
     "decisions": {
         "emoji": "🧭",
@@ -101,7 +99,7 @@ CATALOG = {
             "и техники, которые реально помогают принимать лучшие решения."
         ),
         "price": 375,
-        "pdf_path": "pdfs/decisions_workbook.pdf",
+        "pdf_path": "pdfs/РЕШЕНИЯ.pdf",
     },
     "loneliness": {
         "emoji": "🌿",
@@ -112,7 +110,7 @@ CATALOG = {
             "Внутри: нейробиология привязанности и как строить связи, которые держат."
         ),
         "price": 375,
-        "pdf_path": "pdfs/loneliness_workbook.pdf",
+        "pdf_path": "pdfs/ОДИНОЧЕСТВО.pdf",
     },
     "toxic_relationships": {
         "emoji": "⚠️",
@@ -123,7 +121,7 @@ CATALOG = {
             "Внутри: газлайтинг, травматическая привязанность и план выхода."
         ),
         "price": 375,
-        "pdf_path": "pdfs/toxic_relationships_workbook.pdf",
+        "pdf_path": "pdfs/ТОКСИЧНЫЕ ОТНОШЕНИЯ.pdf",
     },
     "burnout": {
         "emoji": "🔥",
@@ -134,7 +132,7 @@ CATALOG = {
             "Внутри: три компонента Маслач, шесть зон несоответствия и система на 3–6 месяцев."
         ),
         "price": 375,
-        "pdf_path": "pdfs/burnout_workbook.pdf",
+        "pdf_path": "pdfs/ВЫГОРАНИЕ.pdf",
     },
     "conflict": {
         "emoji": "🤝",
@@ -145,7 +143,7 @@ CATALOG = {
             "Внутри: четыре всадника, метод Розенберга и как выходить из ссоры, сохраняя обоих."
         ),
         "price": 375,
-        "pdf_path": "pdfs/conflict_workbook.pdf",
+        "pdf_path": "pdfs/КОНФЛИКТОЛОГИЯ.pdf",
     },
     "motivation": {
         "emoji": "🚀",
@@ -156,7 +154,7 @@ CATALOG = {
             "Внутри: как работает система вознаграждения мозга и как создать мотивацию, которая держит."
         ),
         "price": 375,
-        "pdf_path": "pdfs/motivation_workbook.pdf",
+        "pdf_path": "pdfs/МОТИВАЦИЯ.pdf",
     },
     "self_doubt": {
         "emoji": "🛡",
@@ -167,7 +165,7 @@ CATALOG = {
             "Внутри: выученная беспомощность, внутренний критик и четыре источника уверенности по Бандуре."
         ),
         "price": 375,
-        "pdf_path": "pdfs/self_doubt_workbook.pdf",
+        "pdf_path": "pdfs/НЕУВЕРЕННОСТЬ.pdf",
     },
 }
 
@@ -178,13 +176,17 @@ SUBSCRIPTION_2M = {
         "Все воркбуки сразу + все новые в течение 2 месяцев. "
         "Неопределённость, Продуктивность и всё, что выйдет."
     ),
-    "price": 1500,  # ⭐ Stars за 2 месяца
+    "price": 1500,
 }
 
 SUBSCRIPTION_YEAR = {
     "title": "Библиотека BZH Academy — год",
     "description": (
         "Все воркбуки сразу + все новые в течение года. "
+        "Максимальная выгода — экономия более 50%."
+    ),
+    "price": 2500,
+}
         "Максимальная выгода — экономия более 50%."
     ),
     "price": 2500,  # ⭐ Stars за год
