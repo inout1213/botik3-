@@ -23,46 +23,299 @@ logger = logging.getLogger(__name__)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
-WELCOME_TEXTS = [
-    "Ты не сломан. Тебя просто никто не учил работать с собой.",
-    "Все инструменты уже существуют. Просто никто не дал их тебе.",
-    "Проблема не в силе воли. Проблема в том, что мозг работает не так, как ты думаешь.",
-    "Ты уже пробовал. Не сработало. Потому что метод был не тот.",
-    "Это не слабость. Это просто отсутствие нужных инструментов.",
-    "Большинство проблем в голове решаемы. Просто никто не объяснил как.",
-    "Не мотивация. Не сила воли. Просто правильная система.",
-]
+USER_LANG = {}
+
+
+def get_lang(user_id: int) -> str:
+    return USER_LANG.get(user_id, "ru")
+
+
+WELCOME_TEXTS = {
+    "ru": [
+        (
+            "Тревога, прокрастинация, выгорание — это не твои черты характера.\n"
+            "Это паттерны. И они меняются.\n\n"
+            "_BZH Academy — протоколы для тех, кто хочет разобраться._"
+        ),
+        (
+            "Ты читал, слушал, пробовал. Что-то шло не так.\n"
+            "Потому что понимать — это не то же самое, что иметь инструмент.\n\n"
+            "_BZH Academy — протоколы которые реально работают._"
+        ),
+        (
+            "Большинство людей живут на автопилоте и не знают почему.\n"
+            "BZH Academy — протоколы чтобы наконец разобраться.\n\n"
+            "_Практично. Коротко. Без воды._"
+        ),
+        (
+            "Никто не учил работать с тревогой, мотивацией, выгоранием.\n"
+            "Мы сделали протоколы — коротко, практично, без воды.\n\n"
+            "_BZH Academy — начни прямо сейчас._"
+        ),
+        (
+            "Ты не сломан. Мозг просто работает не так, как нас учили думать.\n\n"
+            "_BZH Academy — протоколы которые реально работают._"
+        ),
+        (
+            "Сила воли здесь ни при чём. Есть инструменты — просто никто их не дал.\n\n"
+            "_BZH Academy — практические протоколы для работы с собой._"
+        ),
+        (
+            "Ты уже пробовал разобраться. Не сработало — потому что метод был не тот.\n\n"
+            "_BZH Academy — протоколы на основе психологии, не мотивации._"
+        ),
+    ],
+    "uk": [
+        (
+            "Тривога, прокрастинація, вигорання — це не твої риси характеру.\n"
+            "Це патерни. І вони змінюються.\n\n"
+            "_BZH Academy — протоколи для тих, хто хоче розібратися._"
+        ),
+        (
+            "Ти читав, слухав, пробував. Щось йшло не так.\n"
+            "Тому що розуміти — це не те саме, що мати інструмент.\n\n"
+            "_BZH Academy — протоколи які реально працюють._"
+        ),
+        (
+            "Більшість людей живуть на автопілоті і не знають чому.\n"
+            "BZH Academy — протоколи щоб нарешті розібратися.\n\n"
+            "_Практично. Коротко. Без води._"
+        ),
+        (
+            "Ніхто не вчив працювати з тривогою, мотивацією, вигоранням.\n"
+            "Ми зробили протоколи — коротко, практично, без води.\n\n"
+            "_BZH Academy — почни прямо зараз._"
+        ),
+        (
+            "Ти не зламаний. Мозок просто працює не так, як нас вчили думати.\n\n"
+            "_BZH Academy — протоколи які реально працюють._"
+        ),
+        (
+            "Сила волі тут ні до чого. Є інструменти — просто ніхто їх не дав.\n\n"
+            "_BZH Academy — практичні протоколи для роботи з собою._"
+        ),
+        (
+            "Ти вже пробував розібратися. Не спрацювало — бо метод був не той.\n\n"
+            "_BZH Academy — протоколи на основі психології, не мотивації._"
+        ),
+    ],
+}
+
+T = {
+    "ru": {
+        "what_now": "Что мешает прямо сейчас?",
+        "cant_start": "😶‍🌫️ Не могу начать",
+        "anxiety": "😰 Тревога и страх",
+        "burnout_btn": "🔥 Выгорел, нет сил",
+        "insecure": "🫤 Не уверен в себе",
+        "conflicts": "⚡️ Конфликты и люди",
+        "all_protocols": "📖 Все протоколы",
+        "my_streak": "🔥 Мой стрик",
+        "language": "🌐 Мова / Язык",
+        "back": "◀️ Назад",
+        "back_main": "🏠 Главное меню",
+        "back_catalog": "◀️ Назад в каталог",
+        "popular": "🔥 Популярное",
+        "by_category": "🧠 По категориям",
+        "search_problem": "🔍 Поиск по проблеме",
+        "all_workbooks": "📋 Все воркбуки",
+        "library": "🔑 Библиотека — все сразу",
+        "catalog_title": "📖 *Воркбуки BZH Academy*\n\nКак хочешь найти воркбук?",
+        "choose_category": "🧠 *Выбери категорию:*",
+        "what_bothers_q": "🔍 *Что тебя беспокоит?*\n\n_Выбери — подберём воркбук._",
+        "here_helps": "Вот что поможет:\n\n",
+        "not_found": "Ничего не найдено.",
+        "all_title": "📋 *Все воркбуки BZH Academy*\n\n",
+        "popular_title": "🔥 *Популярные воркбуки*\n\n",
+        "about_text": (
+            "💡 *О BZH Academy*\n\n"
+            "Мы делаем воркбуки — не курсы, не лекции.\n"
+            "Только практика. Только инструменты.\n\n"
+            "Каждый воркбук — это:\n"
+            "· 8–10 блоков с упражнениями\n"
+            "· КПТ-инструменты и чек-листы\n"
+            "· Директивы для действия\n"
+            "· PDF сразу после оплаты\n\n"
+            "_Открываешь — и сразу работаешь._"
+        ),
+        "view_workbooks": "📖 Смотреть воркбуки",
+        "sub_text": (
+            "🔑 *Библиотека BZH Academy*\n\n"
+            "Все воркбуки сразу + все новые за период.\n\n"
+            "┌ 📦 *2 месяца* — 1 500 ⭐\n"
+            "└ 🏆 *Год* — 2 500 ⭐ · выгоднее в 3×\n\n"
+            "_Оплатил — получил всё мгновенно._"
+        ),
+        "sub_2m": "📦 2 месяца — 1 500 ⭐",
+        "sub_year": "🏆 Год — 2 500 ⭐ · лучший выбор",
+        "sub_2m_label": "2 месяца",
+        "sub_year_label": "год",
+        "payment_ok": "✅ *Оплата прошла!*\n\nДержи свой воркбук 👇\n_Открывай и приступай прямо сейчас._",
+        "pdf_unavailable": "PDF временно недоступен. Мы свяжемся с тобой в течение нескольких минут.",
+        "workbook_unavailable": "Воркбук временно недоступен. Напишем тебе лично.",
+        "sub_ok": "✅ *Библиотека BZH Academy — {label}*\n\nВсе воркбуки уже здесь 👇\n_Сохрани их — и возвращайся когда нужно._",
+        "send_report": "✍️ Отправить отчёт",
+        "report_prompt": (
+            "✍️ *Напиши свой отчёт*\n\n"
+            "_Расскажи как выполнил задание — что сделал, что почувствовал, что понял._\n\n"
+            "Просто отправь текст в этот чат 👇"
+        ),
+        "cancel": "◀️ Отмена",
+        "report_sent": "⏳ *Отчёт отправлен на проверку.*\n\n_Как только подтвердят — стрик засчитается_ 👍",
+        "done_today": "✅ *Сегодня уже засчитано!*\n_Возвращайся завтра._",
+        "pending": "⏳ *Отчёт на проверке.*\n_Ожидай подтверждения._",
+        "task_today": "📌 *Задание на сегодня:*\n_{task}_",
+        "reward_msg": "🎁 *Твоя награда — {title}*\n\n_Заслужил. Держи!_",
+        "reward_pdf_unavail": "PDF временно недоступен. Напишем тебе лично.",
+        "choose_lang": "🌐 Выбери язык / Обери мову:",
+        "lang_set": "Язык изменён на русский 🇷🇺",
+    },
+    "uk": {
+        "what_now": "Що заважає прямо зараз?",
+        "cant_start": "😶‍🌫️ Не можу почати",
+        "anxiety": "😰 Тривога і страх",
+        "burnout_btn": "🔥 Вигорів, немає сил",
+        "insecure": "🫤 Не впевнений у собі",
+        "conflicts": "⚡️ Конфлікти і люди",
+        "all_protocols": "📖 Всі протоколи",
+        "my_streak": "🔥 Мій стрік",
+        "language": "🌐 Мова / Язык",
+        "back": "◀️ Назад",
+        "back_main": "🏠 Головне меню",
+        "back_catalog": "◀️ Назад до каталогу",
+        "popular": "🔥 Популярне",
+        "by_category": "🧠 За категоріями",
+        "search_problem": "🔍 Пошук за проблемою",
+        "all_workbooks": "📋 Всі воркбуки",
+        "library": "🔑 Бібліотека — все одразу",
+        "catalog_title": "📖 *Воркбуки BZH Academy*\n\nЯк хочеш знайти воркбук?",
+        "choose_category": "🧠 *Обери категорію:*",
+        "what_bothers_q": "🔍 *Що тебе турбує?*\n\n_Обери — підберемо воркбук._",
+        "here_helps": "Ось що допоможе:\n\n",
+        "not_found": "Нічого не знайдено.",
+        "all_title": "📋 *Всі воркбуки BZH Academy*\n\n",
+        "popular_title": "🔥 *Популярні воркбуки*\n\n",
+        "about_text": (
+            "💡 *Про BZH Academy*\n\n"
+            "Ми робимо воркбуки — не курси, не лекції.\n"
+            "Тільки практика. Тільки інструменти.\n\n"
+            "Кожен воркбук — це:\n"
+            "· 8–10 блоків з вправами\n"
+            "· КПТ-інструменти і чек-листи\n"
+            "· Директиви для дії\n"
+            "· PDF одразу після оплати\n\n"
+            "_Відкриваєш — і одразу працюєш._"
+        ),
+        "view_workbooks": "📖 Дивитись воркбуки",
+        "sub_text": (
+            "🔑 *Бібліотека BZH Academy*\n\n"
+            "Всі воркбуки одразу + всі нові за період.\n\n"
+            "┌ 📦 *2 місяці* — 1 500 ⭐\n"
+            "└ 🏆 *Рік* — 2 500 ⭐ · вигідніше в 3×\n\n"
+            "_Оплатив — отримав все миттєво._"
+        ),
+        "sub_2m": "📦 2 місяці — 1 500 ⭐",
+        "sub_year": "🏆 Рік — 2 500 ⭐ · найкращий вибір",
+        "sub_2m_label": "2 місяці",
+        "sub_year_label": "рік",
+        "payment_ok": "✅ *Оплата пройшла!*\n\nТримай свій воркбук 👇\n_Відкривай і починай прямо зараз._",
+        "pdf_unavailable": "PDF тимчасово недоступний. Ми зв'яжемося з тобою протягом кількох хвилин.",
+        "workbook_unavailable": "Воркбук тимчасово недоступний. Напишемо тобі особисто.",
+        "sub_ok": "✅ *Бібліотека BZH Academy — {label}*\n\nВсі воркбуки вже тут 👇\n_Збережи їх — і повертайся коли потрібно._",
+        "send_report": "✍️ Надіслати звіт",
+        "report_prompt": (
+            "✍️ *Напиши свій звіт*\n\n"
+            "_Розкажи як виконав завдання — що зробив, що відчув, що зрозумів._\n\n"
+            "Просто надішли текст у цей чат 👇"
+        ),
+        "cancel": "◀️ Скасування",
+        "report_sent": "⏳ *Звіт надіслано на перевірку.*\n\n_Як тільки підтвердять — стрік зарахується_ 👍",
+        "done_today": "✅ *Сьогодні вже зараховано!*\n_Повертайся завтра._",
+        "pending": "⏳ *Звіт на перевірці.*\n_Очікуй підтвердження._",
+        "task_today": "📌 *Завдання на сьогодні:*\n_{task}_",
+        "reward_msg": "🎁 *Твоя нагорода — {title}*\n\n_Заслужив. Тримай!_",
+        "reward_pdf_unavail": "PDF тимчасово недоступний. Напишемо тобі особисто.",
+        "choose_lang": "🌐 Виберіть мову / Выберите язык:",
+        "lang_set": "Мову змінено на українську 🇺🇦",
+    },
+}
+
+DAILY_TASKS = {
+    "ru": [
+        "Запиши одну ситуацию, где ты избегал действия из-за тревоги. Что ты сделал вместо?",
+        "Выдели 10 минут и проведи декатастрофизацию своей главной тревоги прямо сейчас.",
+        "Сделай один маленький шаг к тому, что откладывал. Любой. Запиши результат.",
+        "Определи свою главную задачу на сегодня по правилу 1-3-5. Выполни хотя бы «1».",
+        "Проведи 15 минут без телефона. Только бумага и мысли. Запиши что пришло в голову.",
+        "Вспомни ситуацию из прошлого, которая началась с неопределённости и привела к росту.",
+        "Сделай дыхание 4-7-8 три раза подряд. Запиши как изменилось состояние.",
+    ],
+    "uk": [
+        "Запиши одну ситуацію, де ти уникав дії через тривогу. Що ти зробив натомість?",
+        "Виділи 10 хвилин і проведи декатастрофізацію своєї головної тривоги прямо зараз.",
+        "Зроби один маленький крок до того, що відкладав. Будь-який. Запиши результат.",
+        "Визнач своє головне завдання на сьогодні за правилом 1-3-5. Виконай хоча б «1».",
+        "Проведи 15 хвилин без телефону. Тільки папір і думки. Запиши що прийшло в голову.",
+        "Згадай ситуацію з минулого, яка почалася з невизначеності і призвела до зростання.",
+        "Зроби дихання 4-7-8 три рази поспіль. Запиши як змінився стан.",
+    ],
+}
+
+PROBLEM_SEARCH_UK = {
+    "не можу почати": ["procrastination", "motivation", "self_doubt"],
+    "тривога": ["uncertainty", "self_doubt", "burnout"],
+    "втомився": ["burnout", "productivity", "motivation"],
+    "конфлікт": ["conflict", "toxic_relationships"],
+    "не впевнений": ["self_doubt", "imposter", "motivation"],
+    "самотньо": ["loneliness", "toxic_relationships"],
+    "не можу вирішити": ["decisions", "uncertainty"],
+    "вигорів": ["burnout", "motivation", "productivity"],
+    "токсичні": ["toxic_relationships", "conflict"],
+}
 
 
 # ─── Клавиатуры ────────────────────────────────────────────────────────────────
 
-def main_menu() -> InlineKeyboardMarkup:
-    buttons = [
-        [InlineKeyboardButton(text="Не могу начать", callback_data="search_не могу начать")],
-        [InlineKeyboardButton(text="Тревога и страх", callback_data="search_тревога")],
-        [InlineKeyboardButton(text="Выгорел, нет сил", callback_data="search_выгорел")],
-        [InlineKeyboardButton(text="Не уверен в себе", callback_data="search_не уверен")],
-        [InlineKeyboardButton(text="Конфликты и люди", callback_data="search_конфликт")],
-        [InlineKeyboardButton(text="Все протоколы →", callback_data="catalog")],
-    ]
+def main_menu(lang: str = "ru") -> InlineKeyboardMarkup:
+    t = T[lang]
+    if lang == "uk":
+        buttons = [
+            [InlineKeyboardButton(text=t["cant_start"], callback_data="uk_не можу почати")],
+            [InlineKeyboardButton(text=t["anxiety"], callback_data="uk_тривога")],
+            [InlineKeyboardButton(text=t["burnout_btn"], callback_data="uk_вигорів")],
+            [InlineKeyboardButton(text=t["insecure"], callback_data="uk_не впевнений")],
+            [InlineKeyboardButton(text=t["conflicts"], callback_data="uk_конфлікт")],
+        ]
+    else:
+        buttons = [
+            [InlineKeyboardButton(text=t["cant_start"], callback_data="search_не могу начать")],
+            [InlineKeyboardButton(text=t["anxiety"], callback_data="search_тревога")],
+            [InlineKeyboardButton(text=t["burnout_btn"], callback_data="search_выгорел")],
+            [InlineKeyboardButton(text=t["insecure"], callback_data="search_не уверен")],
+            [InlineKeyboardButton(text=t["conflicts"], callback_data="search_конфликт")],
+        ]
+    buttons.append([
+        InlineKeyboardButton(text=t["all_protocols"], callback_data="catalog"),
+        InlineKeyboardButton(text=t["my_streak"], callback_data="streak"),
+    ])
+    buttons.append([InlineKeyboardButton(text=t["language"], callback_data="choose_lang")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def catalog_keyboard() -> InlineKeyboardMarkup:
-    """Главный экран каталога — выбор режима."""
-    buttons = [
-        [InlineKeyboardButton(text="🔥 Популярное", callback_data="cat_popular")],
-        [InlineKeyboardButton(text="🧠 По категориям", callback_data="cat_categories")],
-        [InlineKeyboardButton(text="🔍 Поиск по проблеме", callback_data="cat_search")],
-        [InlineKeyboardButton(text="📋 Все воркбуки", callback_data="cat_all")],
-        [InlineKeyboardButton(text="🔑 Библиотека — все сразу", callback_data="subscription")],
-        [InlineKeyboardButton(text="◀️ Назад", callback_data="back_main")],
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
+def catalog_keyboard(lang: str = "ru") -> InlineKeyboardMarkup:
+    t = T[lang]
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t["popular"], callback_data="cat_popular")],
+        [InlineKeyboardButton(text=t["by_category"], callback_data="cat_categories")],
+        [InlineKeyboardButton(text=t["search_problem"], callback_data="cat_search")],
+        [InlineKeyboardButton(text=t["all_workbooks"], callback_data="cat_all")],
+        [InlineKeyboardButton(text=t["library"], callback_data="subscription")],
+        [InlineKeyboardButton(text=t["back"], callback_data="back_main")],
+    ])
 
 
-def workbook_list_keyboard(keys: list, back: str = "catalog") -> InlineKeyboardMarkup:
-    """Список конкретных воркбуков."""
+def workbook_list_keyboard(keys: list, back: str = "catalog", lang: str = "ru") -> InlineKeyboardMarkup:
+    t = T[lang]
     buttons = []
     for key in keys:
         item = CATALOG.get(key)
@@ -71,34 +324,49 @@ def workbook_list_keyboard(keys: list, back: str = "catalog") -> InlineKeyboardM
                 text=f"{item['emoji']} {item['title']} — {item['price']} ⭐",
                 callback_data=f"buy_{key}"
             )])
-    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data=back)])
+    buttons.append([InlineKeyboardButton(text=t["back"], callback_data=back)])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def categories_keyboard() -> InlineKeyboardMarkup:
+def categories_keyboard(lang: str = "ru") -> InlineKeyboardMarkup:
+    t = T[lang]
     buttons = []
     for key, cat in CATEGORIES.items():
         buttons.append([InlineKeyboardButton(
             text=f"{cat['emoji']} {cat['title']}",
             callback_data=f"category_{key}"
         )])
-    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="catalog")])
+    buttons.append([InlineKeyboardButton(text=t["back"], callback_data="catalog")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def search_keyboard() -> InlineKeyboardMarkup:
-    problems = list(PROBLEM_SEARCH.keys())
+def streak_keyboard(lang: str = "ru", pending: bool = False) -> InlineKeyboardMarkup:
+    t = T[lang]
     buttons = []
-    for p in problems:
-        buttons.append([InlineKeyboardButton(text=f"🔍 {p}", callback_data=f"search_{p}")])
-    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="catalog")])
+    if not pending:
+        buttons.append([InlineKeyboardButton(text=t["send_report"], callback_data="send_report")])
+    buttons.append([InlineKeyboardButton(text=t["back"], callback_data="back_main")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def back_button() -> InlineKeyboardMarkup:
+def admin_approve_keyboard(user_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="✅ Засчитать", callback_data=f"approve_{user_id}"),
+        InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject_{user_id}"),
+    ]])
+
+
+def reward_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="◀️ Назад в каталог", callback_data="catalog")],
-        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")],
+        [InlineKeyboardButton(text=f"{item['emoji']} {item['title']}", callback_data=f"reward_{key}")]
+        for key, item in CATALOG.items()
+    ])
+
+
+def lang_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🇺🇦 Українська", callback_data="set_lang_uk")],
+        [InlineKeyboardButton(text="🇷🇺 Русский", callback_data="set_lang_ru")],
     ])
 
 
@@ -106,13 +374,13 @@ def back_button() -> InlineKeyboardMarkup:
 
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
-    phrase = random.choice(WELCOME_TEXTS)
+    lang = get_lang(message.from_user.id)
+    phrase = random.choice(WELCOME_TEXTS[lang])
+    t = T[lang]
     await message.answer(
-        f"{phrase}\n\n"
-        f"_BZH Academy — протоколы для тех, кто хочет разобраться._\n\n"
-        f"Что мешает прямо сейчас?",
+        f"{phrase}\n\n{t['what_now']}",
         parse_mode="Markdown",
-        reply_markup=main_menu()
+        reply_markup=main_menu(lang)
     )
 
 
@@ -129,63 +397,93 @@ async def cmd_admin(message: Message):
     )
 
 
+# ─── Язык ───────────────────────────────────────────────────────────────────────
+
+@dp.callback_query(F.data == "choose_lang")
+async def choose_lang(callback: CallbackQuery):
+    lang = get_lang(callback.from_user.id)
+    await callback.message.edit_text(
+        T[lang]["choose_lang"],
+        reply_markup=lang_keyboard()
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("set_lang_"))
+async def set_lang(callback: CallbackQuery):
+    lang = callback.data.replace("set_lang_", "")
+    USER_LANG[callback.from_user.id] = lang
+    t = T[lang]
+    phrase = random.choice(WELCOME_TEXTS[lang])
+    await callback.message.edit_text(
+        f"{t['lang_set']}\n\n{phrase}\n\n{t['what_now']}",
+        parse_mode="Markdown",
+        reply_markup=main_menu(lang)
+    )
+    await callback.answer()
+
+
 # ─── Навигация ──────────────────────────────────────────────────────────────────
 
 @dp.callback_query(F.data == "back_main")
 async def back_main(callback: CallbackQuery):
-    phrase = random.choice(WELCOME_TEXTS)
+    lang = get_lang(callback.from_user.id)
+    phrase = random.choice(WELCOME_TEXTS[lang])
+    t = T[lang]
     await callback.message.edit_text(
-        f"{phrase}\n\n"
-        f"_BZH Academy — протоколы для тех, кто хочет разобраться._\n\n"
-        f"Что мешает прямо сейчас?",
+        f"{phrase}\n\n{t['what_now']}",
         parse_mode="Markdown",
-        reply_markup=main_menu()
+        reply_markup=main_menu(lang)
     )
     await callback.answer()
 
 
 @dp.callback_query(F.data == "catalog")
 async def show_catalog(callback: CallbackQuery):
+    lang = get_lang(callback.from_user.id)
     await callback.message.edit_text(
-        "📖 *Воркбуки BZH Academy*\n\n"
-        "Как хочешь найти воркбук?",
+        T[lang]["catalog_title"],
         parse_mode="Markdown",
-        reply_markup=catalog_keyboard()
+        reply_markup=catalog_keyboard(lang)
     )
     await callback.answer()
 
 
 @dp.callback_query(F.data == "cat_popular")
 async def show_popular(callback: CallbackQuery):
-    text = "🔥 *Популярные воркбуки*\n\n"
+    lang = get_lang(callback.from_user.id)
+    t = T[lang]
+    text = t["popular_title"]
     for key in POPULAR:
         item = CATALOG.get(key)
         if item:
             text += f"{item['emoji']} *{item['title']}*\n_{item['description']}_\n💳 {item['price']} ⭐\n\n"
     await callback.message.edit_text(
         text, parse_mode="Markdown",
-        reply_markup=workbook_list_keyboard(POPULAR, back="catalog")
+        reply_markup=workbook_list_keyboard(POPULAR, back="catalog", lang=lang)
     )
     await callback.answer()
 
 
 @dp.callback_query(F.data == "cat_categories")
 async def show_categories(callback: CallbackQuery):
+    lang = get_lang(callback.from_user.id)
     await callback.message.edit_text(
-        "🧠 *Выбери категорию:*",
+        T[lang]["choose_category"],
         parse_mode="Markdown",
-        reply_markup=categories_keyboard()
+        reply_markup=categories_keyboard(lang)
     )
     await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("category_"))
 async def show_category(callback: CallbackQuery):
+    lang = get_lang(callback.from_user.id)
     key = callback.data.replace("category_", "")
     cat = CATEGORIES.get(key)
     keys = CATEGORY_MAP.get(key, [])
     if not cat or not keys:
-        await callback.answer("Категория не найдена.", show_alert=True)
+        await callback.answer(T[lang]["not_found"], show_alert=True)
         return
     text = f"{cat['emoji']} *{cat['title']}*\n\n"
     for k in keys:
@@ -194,110 +492,135 @@ async def show_category(callback: CallbackQuery):
             text += f"{item['emoji']} *{item['title']}*\n_{item['description']}_\n💳 {item['price']} ⭐\n\n"
     await callback.message.edit_text(
         text, parse_mode="Markdown",
-        reply_markup=workbook_list_keyboard(keys, back="cat_categories")
+        reply_markup=workbook_list_keyboard(keys, back="cat_categories", lang=lang)
     )
     await callback.answer()
 
 
 @dp.callback_query(F.data == "cat_search")
 async def show_search(callback: CallbackQuery):
+    lang = get_lang(callback.from_user.id)
+    t = T[lang]
+    if lang == "uk":
+        problems = list(PROBLEM_SEARCH_UK.keys())
+        prefix = "uk_"
+    else:
+        problems = list(PROBLEM_SEARCH.keys())
+        prefix = "search_"
+    buttons = [[InlineKeyboardButton(text=f"🔍 {p}", callback_data=f"{prefix}{p}")] for p in problems]
+    buttons.append([InlineKeyboardButton(text=t["back"], callback_data="catalog")])
     await callback.message.edit_text(
-        "🔍 *Что тебя беспокоит?*\n\n_Выбери — подберём воркбук._",
+        t["what_bothers_q"],
         parse_mode="Markdown",
-        reply_markup=search_keyboard()
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
     )
     await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("search_"))
-async def show_search_result(callback: CallbackQuery):
+async def show_search_result_ru(callback: CallbackQuery):
+    lang = get_lang(callback.from_user.id)
+    t = T[lang]
     problem = callback.data.replace("search_", "")
     keys = PROBLEM_SEARCH.get(problem, [])
     if not keys:
-        await callback.answer("Ничего не найдено.", show_alert=True)
+        await callback.answer(t["not_found"], show_alert=True)
         return
-    text = f"🔍 *«{problem}»*\n\nВот что поможет:\n\n"
+    text = f"🔍 *«{problem}»*\n\n{t['here_helps']}"
     for k in keys:
         item = CATALOG.get(k)
         if item:
             text += f"{item['emoji']} *{item['title']}*\n_{item['description']}_\n💳 {item['price']} ⭐\n\n"
     await callback.message.edit_text(
         text, parse_mode="Markdown",
-        reply_markup=workbook_list_keyboard(keys, back="cat_search")
+        reply_markup=workbook_list_keyboard(keys, back="back_main", lang=lang)
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("uk_"))
+async def show_search_result_uk(callback: CallbackQuery):
+    lang = "uk"
+    t = T[lang]
+    problem = callback.data.replace("uk_", "")
+    keys = PROBLEM_SEARCH_UK.get(problem, [])
+    if not keys:
+        await callback.answer(t["not_found"], show_alert=True)
+        return
+    text = f"🔍 *«{problem}»*\n\n{t['here_helps']}"
+    for k in keys:
+        item = CATALOG.get(k)
+        if item:
+            text += f"{item['emoji']} *{item['title']}*\n_{item['description']}_\n💳 {item['price']} ⭐\n\n"
+    await callback.message.edit_text(
+        text, parse_mode="Markdown",
+        reply_markup=workbook_list_keyboard(keys, back="back_main", lang=lang)
     )
     await callback.answer()
 
 
 @dp.callback_query(F.data == "cat_all")
 async def show_all(callback: CallbackQuery):
-    text = "📋 *Все воркбуки BZH Academy*\n\n"
+    lang = get_lang(callback.from_user.id)
+    t = T[lang]
+    text = t["all_title"]
     for item in CATALOG.values():
         text += f"{item['emoji']} *{item['title']}*\n_{item['description']}_\n💳 {item['price']} ⭐\n\n"
     await callback.message.edit_text(
         text, parse_mode="Markdown",
-        reply_markup=workbook_list_keyboard(list(CATALOG.keys()), back="catalog")
+        reply_markup=workbook_list_keyboard(list(CATALOG.keys()), back="catalog", lang=lang)
     )
     await callback.answer()
 
 
 @dp.callback_query(F.data == "about")
 async def show_about(callback: CallbackQuery):
+    lang = get_lang(callback.from_user.id)
+    t = T[lang]
     await callback.message.edit_text(
-        "💡 *О BZH Academy*\n\n"
-        "Мы делаем воркбуки — не курсы, не лекции.\n"
-        "Только практика. Только инструменты.\n\n"
-        "Каждый воркбук — это:\n"
-        "· 8–10 блоков с упражнениями\n"
-        "· КПТ-инструменты и чек-листы\n"
-        "· Директивы для действия\n"
-        "· PDF сразу после оплаты\n\n"
-        "_Открываешь — и сразу работаешь._",
+        t["about_text"],
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📖 Смотреть воркбуки", callback_data="catalog")],
-            [InlineKeyboardButton(text="◀️ Назад", callback_data="back_main")],
+            [InlineKeyboardButton(text=t["view_workbooks"], callback_data="catalog")],
+            [InlineKeyboardButton(text=t["back"], callback_data="back_main")],
         ])
     )
     await callback.answer()
 
 
-# ─── Покупка воркбука ───────────────────────────────────────────────────────────
+# ─── Покупка ────────────────────────────────────────────────────────────────────
 
 @dp.callback_query(F.data.startswith("buy_"))
 async def buy_workbook(callback: CallbackQuery):
+    lang = get_lang(callback.from_user.id)
     key = callback.data.replace("buy_", "")
     item = CATALOG.get(key)
     if not item:
-        await callback.answer("Воркбук не найден.", show_alert=True)
+        await callback.answer(T[lang]["not_found"], show_alert=True)
         return
-
     await callback.answer()
     await bot.send_invoice(
         chat_id=callback.from_user.id,
         title=item["title"],
         description=item["description"],
         payload=f"workbook_{key}",
-        currency="XTR",  # Telegram Stars
+        currency="XTR",
         prices=[LabeledPrice(label=item["title"], amount=item["price"])],
-        provider_token="",  # пустой для Stars
+        provider_token="",
     )
 
 
-# ─── Подписка ───────────────────────────────────────────────────────────────────
-
 @dp.callback_query(F.data == "subscription")
 async def show_subscription(callback: CallbackQuery):
+    lang = get_lang(callback.from_user.id)
+    t = T[lang]
     await callback.message.edit_text(
-        "🔑 *Библиотека BZH Academy*\n\n"
-        "Все воркбуки сразу + все новые за период.\n\n"
-        "┌ 📦 *2 месяца* — 1 500 ⭐\n"
-        "└ 🏆 *Год* — 2 500 ⭐ · выгоднее в 3×\n\n"
-        "_Оплатил — получил всё мгновенно._",
+        t["sub_text"],
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📦 2 месяца — 1 500 ⭐", callback_data="buy_sub_2m")],
-            [InlineKeyboardButton(text="🏆 Год — 2 500 ⭐ · лучший выбор", callback_data="buy_sub_year")],
-            [InlineKeyboardButton(text="◀️ Назад", callback_data="catalog")],
+            [InlineKeyboardButton(text=t["sub_2m"], callback_data="buy_sub_2m")],
+            [InlineKeyboardButton(text=t["sub_year"], callback_data="buy_sub_year")],
+            [InlineKeyboardButton(text=t["back"], callback_data="catalog")],
         ])
     )
     await callback.answer()
@@ -333,11 +656,10 @@ async def buy_sub_year(callback: CallbackQuery):
     )
 
 
-# ─── Обработка оплаты ───────────────────────────────────────────────────────────
+# ─── Оплата ─────────────────────────────────────────────────────────────────────
 
 @dp.pre_checkout_query()
 async def pre_checkout(query: PreCheckoutQuery):
-    # Всегда подтверждаем — Stars не требует верификации
     await query.answer(ok=True)
 
 
@@ -345,10 +667,11 @@ async def pre_checkout(query: PreCheckoutQuery):
 async def successful_payment(message: Message):
     payload = message.successful_payment.invoice_payload
     user = message.from_user
+    lang = get_lang(user.id)
+    t = T[lang]
 
     logger.info(f"Оплата: user={user.id} ({user.username}), payload={payload}")
 
-    # Уведомление администратору
     await bot.send_message(
         ADMIN_ID,
         f"💰 *Новая оплата!*\n\n"
@@ -359,17 +682,11 @@ async def successful_payment(message: Message):
         parse_mode="Markdown"
     )
 
-    # Доставка PDF
     if payload.startswith("workbook_"):
         key = payload.replace("workbook_", "")
         item = CATALOG.get(key)
         if item and item.get("pdf_path"):
-            await message.answer(
-                f"✅ *Оплата прошла!*\n\n"
-                f"Держи свой воркбук 👇\n"
-                f"_Открывай и приступай прямо сейчас._",
-                parse_mode="Markdown"
-            )
+            await message.answer(t["payment_ok"], parse_mode="Markdown")
             try:
                 with open(item["pdf_path"], "rb") as pdf:
                     await bot.send_document(
@@ -379,21 +696,13 @@ async def successful_payment(message: Message):
                     )
             except FileNotFoundError:
                 logger.error(f"PDF не найден: {item['pdf_path']}")
-                await message.answer(
-                    "PDF временно недоступен. Мы свяжемся с тобой в течение нескольких минут."
-                )
+                await message.answer(t["pdf_unavailable"])
         else:
-            await message.answer("Воркбук временно недоступен. Напишем тебе лично.")
+            await message.answer(t["workbook_unavailable"])
 
     elif payload in ("subscription_2m", "subscription_year"):
-        label = "2 месяца" if payload == "subscription_2m" else "год"
-        await message.answer(
-            f"✅ *Библиотека BZH Academy — {label}*\n\n"
-            f"Все воркбуки уже здесь 👇\n"
-            f"_Сохрани их — и возвращайся когда нужно._",
-            parse_mode="Markdown"
-        )
-        # Отправляем все воркбуки
+        label = t["sub_2m_label"] if payload == "subscription_2m" else t["sub_year_label"]
+        await message.answer(t["sub_ok"].format(label=label), parse_mode="Markdown")
         for item in CATALOG.values():
             if item.get("pdf_path"):
                 try:
@@ -409,83 +718,46 @@ async def successful_payment(message: Message):
 
 # ─── Стрик ──────────────────────────────────────────────────────────────────────
 
-DAILY_TASKS = [
-    "Запиши одну ситуацию, где ты избегал действия из-за тревоги. Что ты сделал вместо?",
-    "Выдели 10 минут и проведи декатастрофизацию своей главной тревоги прямо сейчас.",
-    "Сделай один маленький шаг к тому, что откладывал. Любой. Запиши результат.",
-    "Определи свою главную задачу на сегодня по правилу 1-3-5. Выполни хотя бы «1».",
-    "Проведи 15 минут без телефона. Только бумага и мысли. Запиши что пришло в голову.",
-    "Вспомни ситуацию из прошлого, которая началась с неопределённости и привела к росту.",
-    "Сделай дыхание 4-7-8 три раза подряд. Запиши как изменилось состояние.",
-]
-
-
-def streak_keyboard(pending: bool = False) -> InlineKeyboardMarkup:
-    buttons = []
-    if not pending:
-        buttons.append([InlineKeyboardButton(text="✍️ Отправить отчёт", callback_data="send_report")])
-    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="back_main")])
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
-
-
-def admin_approve_keyboard(user_id: int) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="✅ Засчитать", callback_data=f"approve_{user_id}"),
-            InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject_{user_id}"),
-        ]
-    ])
-
-
-def reward_keyboard() -> InlineKeyboardMarkup:
-    buttons = []
-    for key, item in CATALOG.items():
-        buttons.append([InlineKeyboardButton(
-            text=f"{item['emoji']} {item['title']}",
-            callback_data=f"reward_{key}"
-        )])
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
-
-
 @dp.callback_query(F.data == "streak")
 async def show_streak(callback: CallbackQuery):
-    import random
+    import datetime
+    lang = get_lang(callback.from_user.id)
+    t = T[lang]
     user_id = callback.from_user.id
     user = get_user(user_id)
-    today_str = str(__import__("datetime").date.today())
+    today_str = str(datetime.date.today())
     done_today = user["last_date"] == today_str
     pending = user.get("pending_approval", False)
 
     status = streak_status(user_id)
-    task = random.choice(DAILY_TASKS)
+    task = random.choice(DAILY_TASKS[lang])
 
     text = status + "\n\n"
     if done_today:
-        text += "✅ *Сегодня уже засчитано!*\n_Возвращайся завтра._"
+        text += t["done_today"]
     elif pending:
-        text += "⏳ *Отчёт на проверке.*\n_Ожидай подтверждения._"
+        text += t["pending"]
     else:
-        text += f"📌 *Задание на сегодня:*\n_{task}_"
+        text += t["task_today"].format(task=task)
         WAITING_REPORT[user_id] = task
 
     await callback.message.edit_text(
-        text,
-        parse_mode="Markdown",
-        reply_markup=streak_keyboard(pending=pending or done_today)
+        text, parse_mode="Markdown",
+        reply_markup=streak_keyboard(lang=lang, pending=pending or done_today)
     )
     await callback.answer()
 
 
 @dp.callback_query(F.data == "send_report")
 async def ask_for_report(callback: CallbackQuery):
+    lang = get_lang(callback.from_user.id)
+    t = T[lang]
     user_id = callback.from_user.id
     await callback.message.edit_text(
-        "✍️ *Напиши свой отчёт*\n\n"
-        "_Расскажи как выполнил задание — что сделал, что почувствовал, что понял._\n\n"
-        "Просто отправь текст в этот чат 👇",
+        t["report_prompt"],
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="◀️ Отмена", callback_data="streak")]
+            [InlineKeyboardButton(text=t["cancel"], callback_data="streak")]
         ])
     )
     if user_id not in WAITING_REPORT:
@@ -498,17 +770,13 @@ async def handle_report(message: Message):
     user_id = message.from_user.id
     if user_id not in WAITING_REPORT:
         return
-
+    lang = get_lang(user_id)
+    t = T[lang]
     task = WAITING_REPORT.pop(user_id)
     user = message.from_user
     set_pending(user_id)
 
-    await message.answer(
-        "⏳ *Отчёт отправлен на проверку.*\n\n"
-        "_Как только подтвердят — стрик засчитается_ 👍",
-        parse_mode="Markdown"
-    )
-
+    await message.answer(t["report_sent"], parse_mode="Markdown")
     await bot.send_message(
         ADMIN_ID,
         f"📋 *Новый отчёт*\n\n"
@@ -526,7 +794,6 @@ async def approve_report(callback: CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
         await callback.answer("Нет доступа.", show_alert=True)
         return
-
     user_id = int(callback.data.replace("approve_", ""))
     result = approve_checkin(user_id)
     streak = result["streak"]
@@ -563,8 +830,8 @@ async def reject_report(callback: CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
         await callback.answer("Нет доступа.", show_alert=True)
         return
-
     user_id = int(callback.data.replace("reject_", ""))
+    lang = get_lang(user_id)
     reject_checkin(user_id)
 
     await bot.send_message(
@@ -573,10 +840,9 @@ async def reject_report(callback: CallbackQuery):
         "_Попробуй выполнить задание глубже и отправь новый отчёт._",
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔥 Мой стрик", callback_data="streak")]
+            [InlineKeyboardButton(text=T[lang]["my_streak"], callback_data="streak")]
         ])
     )
-
     await callback.message.edit_text(
         callback.message.text + "\n\n❌ *Отклонено*",
         parse_mode="Markdown"
@@ -586,16 +852,18 @@ async def reject_report(callback: CallbackQuery):
 
 @dp.callback_query(F.data.startswith("reward_"))
 async def send_reward(callback: CallbackQuery):
+    lang = get_lang(callback.from_user.id)
+    t = T[lang]
     key = callback.data.replace("reward_", "")
     item = CATALOG.get(key)
     user = callback.from_user
 
     if not item:
-        await callback.answer("Воркбук не найден.", show_alert=True)
+        await callback.answer(t["not_found"], show_alert=True)
         return
 
     await callback.message.edit_text(
-        f"🎁 *Твоя награда — {item['title']}*\n\n_Заслужил. Держи!_",
+        t["reward_msg"].format(title=item["title"]),
         parse_mode="Markdown"
     )
 
@@ -604,10 +872,10 @@ async def send_reward(callback: CallbackQuery):
             await bot.send_document(
                 callback.from_user.id,
                 document=BufferedInputFile(pdf.read(), filename=f"{item['title']}.pdf"),
-                caption=f"🎁 Награда за стрик · {item['title']} | BZH Academy"
+                caption=f"🎁 {item['title']} | BZH Academy"
             )
     except FileNotFoundError:
-        await callback.message.answer("PDF временно недоступен. Напишем тебе лично.")
+        await callback.message.answer(t["reward_pdf_unavail"])
 
     await bot.send_message(
         ADMIN_ID,
