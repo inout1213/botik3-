@@ -5,7 +5,7 @@ config.py — настройки бота BZH Academy
 
 # ─── Токен бота ─────────────────────────────────────────────────────────────────
 # Получи у @BotFather → /newbot
-BOT_TOKEN = "8166010240:AAF65-JKNwyXPxh2odZUg7eWRMMTr9Hw52o"
+BOT_TOKEN = "8166010240:AAHZTJnqt-QFN4xCAQ8vgVcJnVmgpVoJx8c"
 
 # ─── Твой Telegram ID ───────────────────────────────────────────────────────────
 # Узнай у @userinfobot
