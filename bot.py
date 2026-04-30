@@ -20,7 +20,12 @@ from database import (
     init_db, upsert_user, set_user_lang, get_user_lang,
     get_all_users, get_stats, get_active_streaks, get_recent_purchases,
     save_purchase, save_report, set_pending, approve_checkin, reject_checkin,
-    get_user_streak
+    get_user_streak, register_referral, on_referral_purchase,
+    get_discount, use_discount, get_referral_stats, get_top_referrers,
+    init_diary_table, save_diary_entry, get_diary_entries,
+    delete_diary_entry, get_mood_week,
+    init_notifications_table, set_diary_push, get_diary_push,
+    get_diary_push_users, get_streak_at_risk_users
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -283,6 +288,177 @@ PROBLEM_SEARCH_UK = {
     "токсичні": ["toxic_relationships", "conflict"],
 }
 
+# ─── Квиз ───────────────────────────────────────────────────────────────────────
+
+QUIZ_ANSWERS = {}  # user_id: [ответы]
+DIARY_MOOD = {}   # user_id: выбранное настроение
+DIARY_WRITING = set()  # user_id: ожидает текст дневника
+
+QUIZ_QUESTIONS = {
+    "ru": [
+        {
+            "text": "Что сейчас мешает больше всего?",
+            "options": [
+                ("😶‍🌫️ Не могу начать / откладываю", "procrastination"),
+                ("😰 Тревога и страх", "anxiety"),
+                ("🔥 Нет сил / выгорание", "burnout"),
+                ("🫤 Не уверен в себе", "self_doubt"),
+                ("⚡️ Конфликты и отношения", "relations"),
+            ]
+        },
+        {
+            "text": "Как давно это происходит?",
+            "options": [
+                ("🌱 Недавно началось", "recent"),
+                ("📅 Несколько месяцев", "months"),
+                ("🔄 Уже давно, хронически", "chronic"),
+            ]
+        },
+        {
+            "text": "Как это влияет на жизнь?",
+            "options": [
+                ("💼 Мешает работе", "work"),
+                ("❤️ Мешает отношениям", "relations_impact"),
+                ("🌀 Мешает всему сразу", "everything"),
+                ("🔍 Просто хочу разобраться в себе", "self"),
+            ]
+        },
+        {
+            "text": "Пробовал ли уже что-то?",
+            "options": [
+                ("🆕 Нет, это первый шаг", "first"),
+                ("📚 Читал книги / смотрел видео", "books"),
+                ("🛋 Был у психолога", "therapy"),
+                ("😔 Пробовал многое — не помогло", "tried"),
+            ]
+        },
+        {
+            "text": "Что хочешь получить?",
+            "options": [
+                ("🔍 Понять причину", "understand"),
+                ("📋 Конкретный план действий", "plan"),
+                ("⚡️ Быстрый результат", "fast"),
+                ("🌱 Долгосрочное изменение", "longterm"),
+            ]
+        },
+    ],
+    "uk": [
+        {
+            "text": "Що зараз заважає найбільше?",
+            "options": [
+                ("😶‍🌫️ Не можу почати / відкладаю", "procrastination"),
+                ("😰 Тривога і страх", "anxiety"),
+                ("🔥 Немає сил / вигорання", "burnout"),
+                ("🫤 Не впевнений у собі", "self_doubt"),
+                ("⚡️ Конфлікти і стосунки", "relations"),
+            ]
+        },
+        {
+            "text": "Як давно це відбувається?",
+            "options": [
+                ("🌱 Нещодавно почалося", "recent"),
+                ("📅 Кілька місяців", "months"),
+                ("🔄 Вже давно, хронічно", "chronic"),
+            ]
+        },
+        {
+            "text": "Як це впливає на життя?",
+            "options": [
+                ("💼 Заважає роботі", "work"),
+                ("❤️ Заважає стосункам", "relations_impact"),
+                ("🌀 Заважає всьому одразу", "everything"),
+                ("🔍 Просто хочу розібратися в собі", "self"),
+            ]
+        },
+        {
+            "text": "Пробував вже щось?",
+            "options": [
+                ("🆕 Ні, це перший крок", "first"),
+                ("📚 Читав книги / дивився відео", "books"),
+                ("🛋 Був у психолога", "therapy"),
+                ("😔 Пробував багато — не допомогло", "tried"),
+            ]
+        },
+        {
+            "text": "Що хочеш отримати?",
+            "options": [
+                ("🔍 Зрозуміти причину", "understand"),
+                ("📋 Конкретний план дій", "plan"),
+                ("⚡️ Швидкий результат", "fast"),
+                ("🌱 Довгострокову зміну", "longterm"),
+            ]
+        },
+    ]
+}
+
+# Логика подбора протоколов по ответам
+def get_quiz_result(answers: list) -> list:
+    scores = {}
+
+    # Q1 — основная проблема
+    q1 = answers[0] if len(answers) > 0 else ""
+    q1_map = {
+        "procrastination": ["procrastination", "motivation", "self_doubt"],
+        "anxiety": ["uncertainty", "self_doubt", "burnout"],
+        "burnout": ["burnout", "motivation", "productivity"],
+        "self_doubt": ["self_doubt", "imposter", "motivation"],
+        "relations": ["conflict", "toxic_relationships", "loneliness"],
+    }
+    for key in q1_map.get(q1, []):
+        scores[key] = scores.get(key, 0) + 3
+
+    # Q2 — давность
+    q2 = answers[1] if len(answers) > 1 else ""
+    if q2 == "chronic":
+        for key in ["burnout", "self_doubt", "loneliness"]:
+            scores[key] = scores.get(key, 0) + 1
+    elif q2 == "recent":
+        for key in ["uncertainty", "decisions"]:
+            scores[key] = scores.get(key, 0) + 1
+
+    # Q3 — влияние
+    q3 = answers[2] if len(answers) > 2 else ""
+    if q3 == "work":
+        for key in ["productivity", "procrastination", "burnout"]:
+            scores[key] = scores.get(key, 0) + 2
+    elif q3 == "relations_impact":
+        for key in ["conflict", "toxic_relationships", "loneliness"]:
+            scores[key] = scores.get(key, 0) + 2
+    elif q3 == "everything":
+        for key in ["burnout", "motivation", "uncertainty"]:
+            scores[key] = scores.get(key, 0) + 2
+    elif q3 == "self":
+        for key in ["self_doubt", "imposter", "decisions"]:
+            scores[key] = scores.get(key, 0) + 2
+
+    # Q4 — опыт
+    q4 = answers[3] if len(answers) > 3 else ""
+    if q4 == "tried":
+        for key in ["burnout", "self_doubt", "uncertainty"]:
+            scores[key] = scores.get(key, 0) + 1
+    elif q4 == "first":
+        for key in ["motivation", "procrastination"]:
+            scores[key] = scores.get(key, 0) + 1
+
+    # Q5 — цель
+    q5 = answers[4] if len(answers) > 4 else ""
+    if q5 == "plan":
+        for key in ["productivity", "decisions", "procrastination"]:
+            scores[key] = scores.get(key, 0) + 1
+    elif q5 == "understand":
+        for key in ["self_doubt", "imposter", "uncertainty"]:
+            scores[key] = scores.get(key, 0) + 1
+    elif q5 == "longterm":
+        for key in ["burnout", "motivation", "self_doubt"]:
+            scores[key] = scores.get(key, 0) + 1
+    elif q5 == "fast":
+        for key in ["procrastination", "motivation", "productivity"]:
+            scores[key] = scores.get(key, 0) + 1
+
+    # Топ 3 протокола
+    sorted_keys = sorted(scores, key=lambda k: scores[k], reverse=True)
+    return sorted_keys[:3] if sorted_keys else ["uncertainty", "motivation", "self_doubt"]
+
 
 # ─── Клавиатуры ────────────────────────────────────────────────────────────────
 
@@ -307,6 +483,10 @@ def main_menu(lang: str = "ru") -> InlineKeyboardMarkup:
     buttons.append([
         InlineKeyboardButton(text=t["all_protocols"], callback_data="catalog"),
         InlineKeyboardButton(text=t["my_streak"], callback_data="streak"),
+    ])
+    buttons.append([
+        InlineKeyboardButton(text="📔 Дневник" if lang == "ru" else "📔 Щоденник", callback_data="diary"),
+        InlineKeyboardButton(text="🤝 Реферальная" if lang == "ru" else "🤝 Реферальна", callback_data="referral"),
     ])
     buttons.append([InlineKeyboardButton(text=t["language"], callback_data="choose_lang")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -388,14 +568,298 @@ def lang_keyboard() -> InlineKeyboardMarkup:
 async def cmd_start(message: Message):
     user = message.from_user
     await upsert_user(user.id, user.username, user.full_name)
+
+    # Обработка реферальной ссылки
+    args = message.text.split()
+    if len(args) > 1 and args[1].startswith("ref_"):
+        try:
+            referrer_id = int(args[1].replace("ref_", ""))
+            await register_referral(referrer_id, user.id)
+        except ValueError:
+            pass
+
     lang = await get_lang(user.id)
     phrase = random.choice(WELCOME_TEXTS[lang])
-    t = T[lang]
-    await message.answer(
-        f"{phrase}\n\n{t['what_now']}",
+
+    if lang == "uk":
+        text = f"{phrase}\n\nЯк хочеш продовжити?"
+        buttons = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📖 Головне меню", callback_data="back_main")],
+            [InlineKeyboardButton(text="🎯 Пройти квіз — підберемо протокол", callback_data="quiz_start")],
+        ])
+    else:
+        text = f"{phrase}\n\nКак хочешь продолжить?"
+        buttons = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📖 Главное меню", callback_data="back_main")],
+            [InlineKeyboardButton(text="🎯 Пройти квиз — подберём протокол", callback_data="quiz_start")],
+        ])
+
+    await message.answer(text, parse_mode="Markdown", reply_markup=buttons)
+
+
+@dp.callback_query(F.data == "diary")
+async def show_diary(callback: CallbackQuery):
+    lang = await get_lang(callback.from_user.id)
+    user_id = callback.from_user.id
+    entries = await get_diary_entries(user_id, 3)
+    push_enabled = await get_diary_push(user_id)
+
+    if lang == "uk":
+        text = "📔 *Твій щоденник*\n\nЗаписуй думки, відстежуй настрій."
+        btn_new = "✏️ Нова запис"
+        btn_week = "📊 Настрій за тиждень"
+        btn_all = "📋 Всі записи"
+        btn_push = "🔔 Нагадування 20:00 — Вкл" if push_enabled else "🔕 Нагадування 20:00 — Вимк"
+        btn_back = "◀️ Назад"
+        last_label = "*Останні записи:*\n"
+    else:
+        text = "📔 *Твой дневник*\n\nЗаписывай мысли, отслеживай настроение."
+        btn_new = "✏️ Новая запись"
+        btn_week = "📊 Настроение за неделю"
+        btn_all = "📋 Все записи"
+        btn_push = "🔔 Напоминание 20:00 — Вкл" if push_enabled else "🔕 Напоминание 20:00 — Выкл"
+        btn_back = "◀️ Назад"
+        last_label = "*Последние записи:*\n"
+
+    if entries:
+        text += f"\n\n{last_label}"
+        for e in entries:
+            dt = e["created_at"].strftime("%d.%m %H:%M")
+            short = e["text"][:60] + "..." if len(e["text"]) > 60 else e["text"]
+            text += f"\n{e['mood']} {dt}\n_{short}_\n"
+
+    await callback.message.edit_text(
+        text,
         parse_mode="Markdown",
-        reply_markup=main_menu(lang)
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=btn_new, callback_data="diary_new")],
+            [InlineKeyboardButton(text=btn_week, callback_data="diary_week"),
+             InlineKeyboardButton(text=btn_all, callback_data="diary_all")],
+            [InlineKeyboardButton(text=btn_push, callback_data="diary_push_toggle")],
+            [InlineKeyboardButton(text=btn_back, callback_data="back_main")],
+        ])
     )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "diary_push_toggle")
+async def diary_push_toggle(callback: CallbackQuery):
+    lang = await get_lang(callback.from_user.id)
+    user_id = callback.from_user.id
+    current = await get_diary_push(user_id)
+    await set_diary_push(user_id, not current)
+
+    if not current:
+        text = "🔔 Напоминание включено — буду писать каждый день в 20:00" if lang == "ru" else "🔔 Нагадування увімкнено — буду писати щодня о 20:00"
+    else:
+        text = "🔕 Напоминание выключено" if lang == "ru" else "🔕 Нагадування вимкнено"
+
+    await callback.answer(text, show_alert=True)
+    await show_diary(callback)
+
+
+@dp.callback_query(F.data == "diary_new")
+async def diary_new(callback: CallbackQuery):
+    lang = await get_lang(callback.from_user.id)
+    if lang == "uk":
+        text = "Як ти зараз себе почуваєш?"
+    else:
+        text = "Как ты сейчас себя чувствуешь?"
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="😊", callback_data="diary_mood_😊"),
+                InlineKeyboardButton(text="😐", callback_data="diary_mood_😐"),
+                InlineKeyboardButton(text="😔", callback_data="diary_mood_😔"),
+                InlineKeyboardButton(text="😤", callback_data="diary_mood_😤"),
+                InlineKeyboardButton(text="😰", callback_data="diary_mood_😰"),
+            ],
+            [InlineKeyboardButton(text="◀️ Назад", callback_data="diary")],
+        ])
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("diary_mood_"))
+async def diary_mood_selected(callback: CallbackQuery):
+    lang = await get_lang(callback.from_user.id)
+    user_id = callback.from_user.id
+    mood = callback.data.replace("diary_mood_", "")
+    DIARY_MOOD[user_id] = mood
+    DIARY_WRITING.add(user_id)
+
+    if lang == "uk":
+        text = f"Настрій: {mood}\n\nНапиши що у тебе на думці — будь-який текст 👇"
+        cancel = "◀️ Скасування"
+    else:
+        text = f"Настроение: {mood}\n\nНапиши что у тебя на уме — любой текст 👇"
+        cancel = "◀️ Отмена"
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=cancel, callback_data="diary")]
+        ])
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "diary_week")
+async def diary_week(callback: CallbackQuery):
+    lang = await get_lang(callback.from_user.id)
+    rows = await get_mood_week(callback.from_user.id)
+
+    if not rows:
+        text = "За последние 7 дней записей нет." if lang == "ru" else "За останні 7 днів записів немає."
+    else:
+        MOOD_LABELS = {"😊": "Хорошо", "😐": "Нейтрально", "😔": "Грустно", "😤": "Раздражение", "😰": "Тревога"}
+        MOOD_LABELS_UK = {"😊": "Добре", "😐": "Нейтрально", "😔": "Сумно", "😤": "Роздратування", "😰": "Тривога"}
+        labels = MOOD_LABELS_UK if lang == "uk" else MOOD_LABELS
+
+        title = "📊 *Настрій за тиждень:*\n\n" if lang == "uk" else "📊 *Настроение за неделю:*\n\n"
+        text = title
+
+        # Группируем по дням
+        days = {}
+        for r in rows:
+            day = r["day"].strftime("%d.%m")
+            if day not in days:
+                days[day] = []
+            days[day].append(r["mood"])
+
+        for day, moods in days.items():
+            mood_str = " ".join(moods)
+            text += f"*{day}* — {mood_str}\n"
+
+    await callback.message.edit_text(
+        text,
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="◀️ Назад" if lang == "ru" else "◀️ Назад", callback_data="diary")]
+        ])
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "diary_all")
+async def diary_all(callback: CallbackQuery):
+    lang = await get_lang(callback.from_user.id)
+    entries = await get_diary_entries(callback.from_user.id, 10)
+
+    if not entries:
+        text = "Записей пока нет." if lang == "ru" else "Записів поки немає."
+        buttons = [[InlineKeyboardButton(text="◀️ Назад", callback_data="diary")]]
+    else:
+        text = "📋 *Твои записи:*\n\n" if lang == "ru" else "📋 *Твої записи:*\n\n"
+        buttons = []
+        for e in entries:
+            dt = e["created_at"].strftime("%d.%m %H:%M")
+            short = e["text"][:50] + "..." if len(e["text"]) > 50 else e["text"]
+            text += f"{e['mood']} *{dt}*\n{short}\n\n"
+            buttons.append([InlineKeyboardButton(
+                text=f"🗑 Удалить {dt}" if lang == "ru" else f"🗑 Видалити {dt}",
+                callback_data=f"diary_del_{e['id']}"
+            )])
+        buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="diary")])
+
+    await callback.message.edit_text(
+        text,
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("diary_del_"))
+async def diary_delete(callback: CallbackQuery):
+    lang = await get_lang(callback.from_user.id)
+    entry_id = int(callback.data.replace("diary_del_", ""))
+    await delete_diary_entry(entry_id, callback.from_user.id)
+    await callback.answer("Удалено" if lang == "ru" else "Видалено")
+    # Обновляем список
+    await diary_all(callback)
+
+
+@dp.callback_query(F.data == "quiz_start")
+async def quiz_start(callback: CallbackQuery):
+    lang = await get_lang(callback.from_user.id)
+    QUIZ_ANSWERS[callback.from_user.id] = []
+    await show_quiz_question(callback.message, callback.from_user.id, lang, 0, edit=True)
+    await callback.answer()
+
+
+async def show_quiz_question(message, user_id: int, lang: str, q_index: int, edit: bool = False):
+    questions = QUIZ_QUESTIONS[lang]
+    if q_index >= len(questions):
+        return
+
+    q = questions[q_index]
+    total = len(questions)
+    progress = "●" * (q_index + 1) + "○" * (total - q_index - 1)
+
+    text = f"_{progress}_ {q_index + 1}/{total}\n\n*{q['text']}*"
+    buttons = []
+    for label, value in q["options"]:
+        buttons.append([InlineKeyboardButton(
+            text=label,
+            callback_data=f"quiz_ans_{q_index}_{value}"
+        )])
+
+    markup = InlineKeyboardMarkup(inline_keyboard=buttons)
+    if edit:
+        await message.edit_text(text, parse_mode="Markdown", reply_markup=markup)
+    else:
+        await message.answer(text, parse_mode="Markdown", reply_markup=markup)
+
+
+@dp.callback_query(F.data.startswith("quiz_ans_"))
+async def quiz_answer(callback: CallbackQuery):
+    lang = await get_lang(callback.from_user.id)
+    user_id = callback.from_user.id
+    parts = callback.data.replace("quiz_ans_", "").split("_", 1)
+    q_index = int(parts[0])
+    value = parts[1]
+
+    if user_id not in QUIZ_ANSWERS:
+        QUIZ_ANSWERS[user_id] = []
+
+    # Сохраняем ответ
+    answers = QUIZ_ANSWERS[user_id]
+    if len(answers) <= q_index:
+        answers.append(value)
+    else:
+        answers[q_index] = value
+
+    next_index = q_index + 1
+
+    if next_index < len(QUIZ_QUESTIONS[lang]):
+        await show_quiz_question(callback.message, user_id, lang, next_index, edit=True)
+    else:
+        # Квиз завершён — показываем результат
+        result_keys = get_quiz_result(answers)
+        QUIZ_ANSWERS.pop(user_id, None)
+
+        if lang == "uk":
+            text = "🎯 *Ось твої протоколи — підібрано спеціально для тебе:*\n\n"
+        else:
+            text = "🎯 *Вот твои протоколы — подобраны специально для тебя:*\n\n"
+
+        for key in result_keys:
+            item = CATALOG.get(key)
+            if item:
+                title = item.get("title_uk", item["title"]) if lang == "uk" else item["title"]
+                desc = item.get("description_uk", item["description"]) if lang == "uk" else item["description"]
+                text += f"{item['emoji']} *{title}*\n_{desc}_\n💳 {item['price']} ⭐\n\n"
+
+        await callback.message.edit_text(
+            text,
+            parse_mode="Markdown",
+            reply_markup=workbook_list_keyboard(result_keys, back="back_main", lang=lang)
+        )
+
+    await callback.answer()
 
 
 @dp.message(Command("admin"))
@@ -408,6 +872,7 @@ async def cmd_admin(message: Message):
             [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
             [InlineKeyboardButton(text="🔥 Активные стрики", callback_data="admin_streaks")],
             [InlineKeyboardButton(text="💰 Последние покупки", callback_data="admin_purchases")],
+            [InlineKeyboardButton(text="🤝 Топ рефереров", callback_data="admin_referrers")],
             [InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")],
             [InlineKeyboardButton(text="🎁 Выдать воркбук", callback_data="admin_send_wb")],
         ])
@@ -530,8 +995,31 @@ async def admin_back(callback: CallbackQuery):
             [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
             [InlineKeyboardButton(text="🔥 Активные стрики", callback_data="admin_streaks")],
             [InlineKeyboardButton(text="💰 Последние покупки", callback_data="admin_purchases")],
+            [InlineKeyboardButton(text="🤝 Топ рефереров", callback_data="admin_referrers")],
             [InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")],
             [InlineKeyboardButton(text="🎁 Выдать воркбук", callback_data="admin_send_wb")],
+        ])
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "admin_referrers")
+async def admin_referrers(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+    rows = await get_top_referrers(10)
+    if not rows:
+        text = "🤝 Рефералов пока нет"
+    else:
+        lines = []
+        for r in rows:
+            name = r["full_name"] or r["username"] or str(r["referrer_id"])
+            lines.append(f"• {name} (@{r['username'] or '—'}) — приглашено: {r['total']}, купили: {r['purchased']}")
+        text = "🤝 Топ рефереров:\n\n" + "\n".join(lines)
+    await callback.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="◀️ Назад", callback_data="admin_back")]
         ])
     )
     await callback.answer()
@@ -742,24 +1230,95 @@ async def show_about(callback: CallbackQuery):
 
 # ─── Покупка ────────────────────────────────────────────────────────────────────
 
+@dp.callback_query(F.data == "referral")
+async def show_referral(callback: CallbackQuery):
+    lang = await get_lang(callback.from_user.id)
+    user_id = callback.from_user.id
+    stats = await get_referral_stats(user_id)
+
+    bot_info = await bot.get_me()
+    ref_link = f"https://t.me/{bot_info.username}?start=ref_{user_id}"
+
+    purchased = stats["purchased"]
+    total = stats["total"]
+    discount = stats["discount"]
+
+    if lang == "uk":
+        if discount > 0:
+            discount_text = f"🎁 *Твоя поточна знижка: {discount}%*\n_Застосується автоматично при наступній покупці._\n\n"
+        else:
+            discount_text = ""
+        text = (
+            f"🤝 *Реферальна програма*\n\n"
+            f"Запрошуй друзів — отримуй знижки на воркбуки.\n\n"
+            f"За кожного хто *купив*:\n"
+            f"· 1 покупець → знижка *15%*\n"
+            f"· 2 покупці → знижка *30%*\n"
+            f"· 3+ покупці → знижка *50%*\n\n"
+            f"{discount_text}"
+            f"👥 Запрошено: *{total}*\n"
+            f"💰 Купили: *{purchased}*\n\n"
+            f"Твоє посилання:\n`{ref_link}`"
+        )
+    else:
+        if discount > 0:
+            discount_text = f"🎁 *Твоя текущая скидка: {discount}%*\n_Применится автоматически при следующей покупке._\n\n"
+        else:
+            discount_text = ""
+        text = (
+            f"🤝 *Реферальная программа*\n\n"
+            f"Приглашай друзей — получай скидки на воркбуки.\n\n"
+            f"За каждого кто *купил*:\n"
+            f"· 1 покупатель → скидка *15%*\n"
+            f"· 2 покупателя → скидка *30%*\n"
+            f"· 3+ покупателей → скидка *50%*\n\n"
+            f"{discount_text}"
+            f"👥 Приглашено: *{total}*\n"
+            f"💰 Купили: *{purchased}*\n\n"
+            f"Твоя ссылка:\n`{ref_link}`"
+        )
+
+    await callback.message.edit_text(
+        text,
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="◀️ Назад" if lang == "ru" else "◀️ Назад", callback_data="back_main")]
+        ])
+    )
+    await callback.answer()
+
+
 @dp.callback_query(F.data.startswith("buy_"))
 async def buy_workbook(callback: CallbackQuery):
     lang = await get_lang(callback.from_user.id)
+    user_id = callback.from_user.id
     key = callback.data.replace("buy_", "")
     item = CATALOG.get(key)
     if not item:
         await callback.answer(T[lang]["not_found"], show_alert=True)
         return
+
     title = item.get("title_uk", item["title"]) if lang == "uk" else item["title"]
     desc = item.get("description_uk", item["description"]) if lang == "uk" else item["description"]
+    original_price = item["price"]
+
+    # Проверяем скидку
+    discount = await get_discount(user_id)
+    if discount > 0 and original_price > 1:
+        final_price = max(1, int(original_price * (1 - discount / 100)))
+        title_with_discount = f"{title} (скидка {discount}%)" if lang == "ru" else f"{title} (знижка {discount}%)"
+    else:
+        final_price = original_price
+        title_with_discount = title
+
     await callback.answer()
     await bot.send_invoice(
-        chat_id=callback.from_user.id,
-        title=title,
+        chat_id=user_id,
+        title=title_with_discount,
         description=desc,
         payload=f"workbook_{key}",
         currency="XTR",
-        prices=[LabeledPrice(label=title, amount=item["price"])],
+        prices=[LabeledPrice(label=title_with_discount, amount=final_price)],
         provider_token="",
     )
 
@@ -844,6 +1403,30 @@ async def successful_payment(message: Message):
         if item and item.get("pdf_path"):
             title = item.get("title_uk", item["title"]) if lang == "uk" else item["title"]
             await save_purchase(user.id, user.username, user.full_name, key, title, amount)
+
+            # Используем скидку если была
+            discount = await get_discount(user.id)
+            if discount > 0 and item["price"] > 1:
+                await use_discount(user.id)
+
+            # Начисляем бонус рефереру
+            ref_result = await on_referral_purchase(user.id)
+            if ref_result:
+                referrer_id = ref_result["referrer_id"]
+                new_discount = ref_result["discount"]
+                count = ref_result["referrals_count"]
+                try:
+                    await bot.send_message(
+                        referrer_id,
+                        f"🎉 По твоей реферальной ссылке купили воркбук!\n\n"
+                        f"💰 Купивших: {count}\n"
+                        f"🎁 Твоя скидка на следующую покупку: *{new_discount}%*\n\n"
+                        f"_Скидка применится автоматически._",
+                        parse_mode="Markdown"
+                    )
+                except Exception:
+                    pass
+
             await message.answer(t["payment_ok"], parse_mode="Markdown")
             try:
                 with open(item["pdf_path"], "rb") as pdf:
@@ -953,6 +1536,7 @@ async def ask_for_report(callback: CallbackQuery):
 @dp.message(F.text & ~F.text.startswith("/"))
 async def handle_report(message: Message):
     user_id = message.from_user.id
+    lang = await get_lang(user_id)
 
     # Рассылка
     if user_id == ADMIN_ID and BROADCAST_PENDING.get(user_id):
@@ -991,10 +1575,34 @@ async def handle_report(message: Message):
             await message.answer(f"❌ Ошибка: {e}")
         return
 
+    # Запись в дневник
+    if user_id in DIARY_WRITING:
+        DIARY_WRITING.discard(user_id)
+        mood = DIARY_MOOD.pop(user_id, "😐")
+        await save_diary_entry(user_id, mood, message.text)
+        if lang == "uk":
+            await message.answer(
+                f"📔 Записано {mood}\n\n_Запис збережено._",
+                parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="📔 Відкрити щоденник", callback_data="diary")],
+                    [InlineKeyboardButton(text="🏠 Головне меню", callback_data="back_main")],
+                ])
+            )
+        else:
+            await message.answer(
+                f"📔 Записано {mood}\n\n_Запись сохранена._",
+                parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="📔 Открыть дневник", callback_data="diary")],
+                    [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")],
+                ])
+            )
+        return
+
     # Отчёт по стрику
     if user_id not in WAITING_REPORT:
         return
-    lang = await get_lang(user_id)
     t = T[lang]
     task = WAITING_REPORT.pop(user_id)
     user = message.from_user
@@ -1105,10 +1713,94 @@ async def send_reward(callback: CallbackQuery):
 
 # ─── Запуск ─────────────────────────────────────────────────────────────────────
 
+DIARY_PROMPTS = {
+    "ru": [
+        "📔 Как прошёл день? Запиши мысли — это займёт 2 минуты.",
+        "📔 Вечер — хорошее время остановиться и записать как ты себя чувствуешь.",
+        "📔 Что сегодня было важным? Запиши в дневник.",
+        "📔 Один момент из сегодняшнего дня — опиши его в дневнике.",
+        "📔 Как твоё настроение сейчас? Открой дневник и запиши.",
+    ],
+    "uk": [
+        "📔 Як пройшов день? Запиши думки — це займе 2 хвилини.",
+        "📔 Вечір — гарний час зупинитися і записати як ти себе почуваєш.",
+        "📔 Що сьогодні було важливим? Запиши у щоденник.",
+        "📔 Один момент із сьогоднішнього дня — опиши його у щоденнику.",
+        "📔 Який твій настрій зараз? Відкрий щоденник і запиши.",
+    ],
+}
+
+STREAK_WARNINGS = {
+    "ru": [
+        "⚠️ Твой стрик под угрозой! Ты не заходил уже почти сутки.\n\nОсталось совсем немного — не дай стрику оборваться 🔥",
+        "🔥 Стрик горит! Зайди и отправь отчёт — не теряй то, что заработал.",
+        "⏰ Почти 24 часа без отчёта. Твой стрик ещё жив — успей сохранить!",
+    ],
+    "uk": [
+        "⚠️ Твій стрік під загрозою! Ти не заходив вже майже добу.\n\nЗалишилося зовсім небагато — не дай стріку перерватися 🔥",
+        "🔥 Стрік горить! Зайди і надішли звіт — не втрачай те, що заробив.",
+        "⏰ Майже 24 години без звіту. Твій стрік ще живий — встигни зберегти!",
+    ],
+}
+
+
+async def scheduler():
+    """Фоновая задача — проверяет время и отправляет уведомления."""
+    import datetime
+    while True:
+        now = datetime.datetime.now()
+
+        # Пуш дневника в 20:00
+        if now.hour == 20 and now.minute == 0:
+            users = await get_diary_push_users()
+            for u in users:
+                try:
+                    lang = u["lang"] or "ru"
+                    prompt = random.choice(DIARY_PROMPTS[lang])
+                    await bot.send_message(
+                        u["user_id"],
+                        prompt,
+                        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                            [InlineKeyboardButton(
+                                text="📔 Открыть дневник" if lang == "ru" else "📔 Відкрити щоденник",
+                                callback_data="diary"
+                            )]
+                        ])
+                    )
+                except Exception:
+                    pass
+            await asyncio.sleep(60)  # Ждём минуту чтобы не отправить дважды
+
+        # Проверка стриков под угрозой — каждый час
+        if now.minute == 0:
+            users = await get_streak_at_risk_users()
+            for u in users:
+                try:
+                    lang = u["lang"] or "ru"
+                    warning = random.choice(STREAK_WARNINGS[lang])
+                    await bot.send_message(
+                        u["user_id"],
+                        warning,
+                        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                            [InlineKeyboardButton(
+                                text="🔥 Отправить отчёт" if lang == "ru" else "🔥 Надіслати звіт",
+                                callback_data="streak"
+                            )]
+                        ])
+                    )
+                except Exception:
+                    pass
+
+        await asyncio.sleep(60)  # Проверяем каждую минуту
+
+
 async def main():
     logger.info("BZH Academy Bot запущен")
     await init_db()
+    await init_diary_table()
+    await init_notifications_table()
     logger.info("База данных инициализирована")
+    asyncio.create_task(scheduler())
     await dp.start_polling(bot)
 
 
