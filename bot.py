@@ -168,7 +168,7 @@ T = {
         "reward_msg": "🎁 *Твоя награда — {title}*\n\n_Заслужил. Держи!_",
         "reward_pdf_unavail": "PDF временно недоступен. Напишем тебе лично.",
         "choose_lang": "🌐 Выбери язык / Обери мову:",
-        "lang_set": "Язык изменён на русский 🇷🇺",
+        "lang_set": "Язык изменён на русский",
     },
     "uk": {
         "what_now": "Що заважає прямо зараз?",
@@ -368,7 +368,7 @@ def reward_keyboard() -> InlineKeyboardMarkup:
 def lang_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🇺🇦 Українська", callback_data="set_lang_uk")],
-        [InlineKeyboardButton(text="🇷🇺 Русский", callback_data="set_lang_ru")],
+        [InlineKeyboardButton(text="Русский", callback_data="set_lang_ru")],
     ])
 
 
