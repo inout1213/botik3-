@@ -320,8 +320,9 @@ def workbook_list_keyboard(keys: list, back: str = "catalog", lang: str = "ru") 
     for key in keys:
         item = CATALOG.get(key)
         if item:
+            title = item.get("title_uk", item["title"]) if lang == "uk" else item["title"]
             buttons.append([InlineKeyboardButton(
-                text=f"{item['emoji']} {item['title']} — {item['price']} ⭐",
+                text=f"{item['emoji']} {title} — {item['price']} ⭐",
                 callback_data=f"buy_{key}"
             )])
     buttons.append([InlineKeyboardButton(text=t["back"], callback_data=back)])
@@ -332,8 +333,9 @@ def categories_keyboard(lang: str = "ru") -> InlineKeyboardMarkup:
     t = T[lang]
     buttons = []
     for key, cat in CATEGORIES.items():
+        title = cat.get("title_uk", cat["title"]) if lang == "uk" else cat["title"]
         buttons.append([InlineKeyboardButton(
-            text=f"{cat['emoji']} {cat['title']}",
+            text=f"{cat['emoji']} {title}",
             callback_data=f"category_{key}"
         )])
     buttons.append([InlineKeyboardButton(text=t["back"], callback_data="catalog")])
@@ -457,7 +459,9 @@ async def show_popular(callback: CallbackQuery):
     for key in POPULAR:
         item = CATALOG.get(key)
         if item:
-            text += f"{item['emoji']} *{item['title']}*\n_{item['description']}_\n💳 {item['price']} ⭐\n\n"
+            title = item.get("title_uk", item["title"]) if lang == "uk" else item["title"]
+            desc = item.get("description_uk", item["description"]) if lang == "uk" else item["description"]
+            text += f"{item['emoji']} *{title}*\n_{desc}_\n💳 {item['price']} ⭐\n\n"
     await callback.message.edit_text(
         text, parse_mode="Markdown",
         reply_markup=workbook_list_keyboard(POPULAR, back="catalog", lang=lang)
@@ -485,11 +489,14 @@ async def show_category(callback: CallbackQuery):
     if not cat or not keys:
         await callback.answer(T[lang]["not_found"], show_alert=True)
         return
-    text = f"{cat['emoji']} *{cat['title']}*\n\n"
+    cat_title = cat.get("title_uk", cat["title"]) if lang == "uk" else cat["title"]
+    text = f"{cat['emoji']} *{cat_title}*\n\n"
     for k in keys:
         item = CATALOG.get(k)
         if item:
-            text += f"{item['emoji']} *{item['title']}*\n_{item['description']}_\n💳 {item['price']} ⭐\n\n"
+            title = item.get("title_uk", item["title"]) if lang == "uk" else item["title"]
+            desc = item.get("description_uk", item["description"]) if lang == "uk" else item["description"]
+            text += f"{item['emoji']} *{title}*\n_{desc}_\n💳 {item['price']} ⭐\n\n"
     await callback.message.edit_text(
         text, parse_mode="Markdown",
         reply_markup=workbook_list_keyboard(keys, back="cat_categories", lang=lang)
@@ -530,7 +537,9 @@ async def show_search_result_ru(callback: CallbackQuery):
     for k in keys:
         item = CATALOG.get(k)
         if item:
-            text += f"{item['emoji']} *{item['title']}*\n_{item['description']}_\n💳 {item['price']} ⭐\n\n"
+            title = item.get("title_uk", item["title"]) if lang == "uk" else item["title"]
+            desc = item.get("description_uk", item["description"]) if lang == "uk" else item["description"]
+            text += f"{item['emoji']} *{title}*\n_{desc}_\n💳 {item['price']} ⭐\n\n"
     await callback.message.edit_text(
         text, parse_mode="Markdown",
         reply_markup=workbook_list_keyboard(keys, back="back_main", lang=lang)
@@ -551,7 +560,9 @@ async def show_search_result_uk(callback: CallbackQuery):
     for k in keys:
         item = CATALOG.get(k)
         if item:
-            text += f"{item['emoji']} *{item['title']}*\n_{item['description']}_\n💳 {item['price']} ⭐\n\n"
+            title = item.get("title_uk", item["title"])
+            desc = item.get("description_uk", item["description"])
+            text += f"{item['emoji']} *{title}*\n_{desc}_\n💳 {item['price']} ⭐\n\n"
     await callback.message.edit_text(
         text, parse_mode="Markdown",
         reply_markup=workbook_list_keyboard(keys, back="back_main", lang=lang)
@@ -565,7 +576,9 @@ async def show_all(callback: CallbackQuery):
     t = T[lang]
     text = t["all_title"]
     for item in CATALOG.values():
-        text += f"{item['emoji']} *{item['title']}*\n_{item['description']}_\n💳 {item['price']} ⭐\n\n"
+        title = item.get("title_uk", item["title"]) if lang == "uk" else item["title"]
+        desc = item.get("description_uk", item["description"]) if lang == "uk" else item["description"]
+        text += f"{item['emoji']} *{title}*\n_{desc}_\n💳 {item['price']} ⭐\n\n"
     await callback.message.edit_text(
         text, parse_mode="Markdown",
         reply_markup=workbook_list_keyboard(list(CATALOG.keys()), back="catalog", lang=lang)
