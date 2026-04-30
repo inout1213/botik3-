@@ -611,14 +611,16 @@ async def buy_workbook(callback: CallbackQuery):
     if not item:
         await callback.answer(T[lang]["not_found"], show_alert=True)
         return
+    title = item.get("title_uk", item["title"]) if lang == "uk" else item["title"]
+    desc = item.get("description_uk", item["description"]) if lang == "uk" else item["description"]
     await callback.answer()
     await bot.send_invoice(
         chat_id=callback.from_user.id,
-        title=item["title"],
-        description=item["description"],
+        title=title,
+        description=desc,
         payload=f"workbook_{key}",
         currency="XTR",
-        prices=[LabeledPrice(label=item["title"], amount=item["price"])],
+        prices=[LabeledPrice(label=title, amount=item["price"])],
         provider_token="",
     )
 
