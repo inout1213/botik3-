@@ -80,8 +80,8 @@ async def upsert_user(user_id: int, username: str, full_name: str, lang: str = "
             INSERT INTO users (user_id, username, full_name, lang)
             VALUES ($1, $2, $3, $4)
             ON CONFLICT (user_id) DO UPDATE
-            SET username = $2, full_name = $3
-        """, user_id, username or "", full_name or "")
+            SET username = EXCLUDED.username, full_name = EXCLUDED.full_name
+        """, user_id, username or "", full_name or "", lang)
 
 
 async def set_user_lang(user_id: int, lang: str):
