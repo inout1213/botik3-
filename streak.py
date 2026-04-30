@@ -116,7 +116,23 @@ def progress_bar(streak: int, goal: int = STREAK_GOAL) -> str:
     return "🔥" * filled + "⬜" * empty
 
 
-def streak_status(user_id: int) -> str:
+def _day_ru(n: int) -> str:
+    if n == 1:
+        return "день"
+    elif 2 <= n <= 4:
+        return "дня"
+    return "дней"
+
+
+def _day_uk(n: int) -> str:
+    if n == 1:
+        return "день"
+    elif 2 <= n <= 4:
+        return "дні"
+    return "днів"
+
+
+def streak_status(user_id: int, lang: str = "ru") -> str:
     user = get_user(user_id)
     streak = user["streak"]
     goal = STREAK_GOAL
@@ -125,9 +141,41 @@ def streak_status(user_id: int) -> str:
     rewards = user["rewards_claimed"]
     pending = user.get("pending_approval", False)
 
+    if lang == "uk":
+        if pending:
+            return (
+                f"🔥 *Твій стрік: {streak} {_day_uk(streak)}*\n\n"
+                f"{bar}\n\n"
+                f"⏳ _Звіт надіслано — очікуй підтвердження._"
+            )
+
+        if streak == 0:
+            return (
+                f"🔥 *Твій стрік: 0 днів*\n\n"
+                f"{bar}\n\n"
+                f"Виконай сьогоднішнє завдання і надішли звіт!\n"
+                f"_{goal} днів поспіль = безкоштовний воркбук на вибір_ 🎁"
+            )
+
+        if remaining == 0:
+            return (
+                f"🔥 *Твій стрік: {streak} {_day_uk(streak)}*\n\n"
+                f"{'🔥' * goal}\n\n"
+                f"🎁 Ти заробив нагороду! Обери безкоштовний воркбук.\n"
+                f"_Всього нагород отримано: {rewards}_"
+            )
+
+        return (
+            f"🔥 *Твій стрік: {streak} {_day_uk(streak)}*\n\n"
+            f"{bar}\n\n"
+            f"До безкоштовного воркбуку: *{remaining} {_day_uk(remaining)}* 🎁\n"
+            f"_Не переривай стрік — повертайся завтра!_"
+        )
+
+    # Русский
     if pending:
         return (
-            f"🔥 *Твой стрик: {streak} дней*\n\n"
+            f"🔥 *Твой стрик: {streak} {_day_ru(streak)}*\n\n"
             f"{bar}\n\n"
             f"⏳ _Отчёт отправлен — ожидай подтверждения._"
         )
@@ -142,15 +190,15 @@ def streak_status(user_id: int) -> str:
 
     if remaining == 0:
         return (
-            f"🔥 *Твой стрик: {streak} дней*\n\n"
+            f"🔥 *Твой стрик: {streak} {_day_ru(streak)}*\n\n"
             f"{'🔥' * goal}\n\n"
             f"🎁 Ты заработал награду! Выбери бесплатный воркбук.\n"
             f"_Всего наград получено: {rewards}_"
         )
 
     return (
-        f"🔥 *Твой стрик: {streak} {'день' if streak == 1 else 'дня' if 2 <= streak <= 4 else 'дней'}*\n\n"
+        f"🔥 *Твой стрик: {streak} {_day_ru(streak)}*\n\n"
         f"{bar}\n\n"
-        f"До бесплатного воркбука: *{remaining} {'день' if remaining == 1 else 'дня' if 2 <= remaining <= 4 else 'дней'}* 🎁\n"
+        f"До бесплатного воркбука: *{remaining} {_day_ru(remaining)}* 🎁\n"
         f"_Не прерывай стрик — возвращайся завтра!_"
     )
