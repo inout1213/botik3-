@@ -1,7 +1,7 @@
 """
 BZH Academy — Telegram Sales Bot
 Оплата: Telegram Stars | Доставка: PDF сразу после оплаты
-""" 
+"""
 
 import asyncio
 import logging
@@ -15,7 +15,13 @@ from aiogram.types import (
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.storage.memory import MemoryStorage
 from config import BOT_TOKEN, ADMIN_ID, CATALOG, SUBSCRIPTION_2M, SUBSCRIPTION_YEAR, CATEGORIES, CATEGORY_MAP, POPULAR, PROBLEM_SEARCH
-from streak import approve_checkin, reject_checkin, streak_status, progress_bar, STREAK_GOAL, WAITING_REPORT, set_pending, get_user
+from streak import progress_bar, STREAK_GOAL, WAITING_REPORT
+from database import (
+    init_db, upsert_user, set_user_lang, get_user_lang,
+    get_all_users, get_stats, get_active_streaks, get_recent_purchases,
+    save_purchase, save_report, set_pending, approve_checkin, reject_checkin,
+    get_user_streak
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -23,11 +29,15 @@ logger = logging.getLogger(__name__)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
-USER_LANG = {}
+USER_LANG = {}  # кэш языков
 
 
-def get_lang(user_id: int) -> str:
-    return USER_LANG.get(user_id, "ru")
+async def get_lang(user_id: int) -> str:
+    if user_id in USER_LANG:
+        return USER_LANG[user_id]
+    lang = await get_user_lang(user_id)
+    USER_LANG[user_id] = lang
+    return lang
 
 
 WELCOME_TEXTS = {
@@ -376,7 +386,9 @@ def lang_keyboard() -> InlineKeyboardMarkup:
 
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
-    lang = get_lang(message.from_user.id)
+    user = message.from_user
+    await upsert_user(user.id, user.username, user.full_name)
+    lang = await get_lang(user.id)
     phrase = random.choice(WELCOME_TEXTS[lang])
     t = T[lang]
     await message.answer(
@@ -391,19 +403,145 @@ async def cmd_admin(message: Message):
     if message.from_user.id != ADMIN_ID:
         return
     await message.answer(
-        "🔧 *Панель администратора*\n\n"
-        "Команды:\n"
-        "/stats — статистика продаж\n"
-        "/broadcast — рассылка (в разработке)",
-        parse_mode="Markdown"
+        "🔧 Панель администратора BZH Academy",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
+            [InlineKeyboardButton(text="🔥 Активные стрики", callback_data="admin_streaks")],
+            [InlineKeyboardButton(text="💰 Последние покупки", callback_data="admin_purchases")],
+            [InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")],
+            [InlineKeyboardButton(text="🎁 Выдать воркбук", callback_data="admin_send_wb")],
+        ])
     )
+
+
+@dp.callback_query(F.data == "admin_stats")
+async def admin_stats(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+    stats = await get_stats()
+    top = "\n".join([f"  {i+1}. {r['product_title']} — {r['cnt']} шт" for i, r in enumerate(stats["top_products"])])
+    text = (
+        f"📊 Статистика BZH Academy\n\n"
+        f"👥 Пользователей: {stats['users']}\n"
+        f"💰 Покупок всего: {stats['purchases_total']}\n"
+        f"💰 Покупок сегодня: {stats['purchases_today']}\n"
+        f"⭐ Звёзд всего: {stats['revenue_total']}\n"
+        f"⭐ Звёзд сегодня: {stats['revenue_today']}\n"
+        f"🔥 Активных стриков: {stats['active_streaks']}\n\n"
+        f"🏆 Топ воркбуки:\n{top or '  Нет данных'}"
+    )
+    await callback.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="◀️ Назад", callback_data="admin_back")]
+        ])
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "admin_streaks")
+async def admin_streaks(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+    rows = await get_active_streaks()
+    if not rows:
+        text = "🔥 Активных стриков нет"
+    else:
+        lines = []
+        for r in rows:
+            name = r["full_name"] or r["username"] or str(r["user_id"])
+            lines.append(f"🔥 {r['streak']} дн — {name} (@{r['username'] or '—'})")
+        text = "🔥 Активные стрики (топ 10):\n\n" + "\n".join(lines)
+    await callback.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="◀️ Назад", callback_data="admin_back")]
+        ])
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "admin_purchases")
+async def admin_purchases(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+    rows = await get_recent_purchases(10)
+    if not rows:
+        text = "💰 Покупок пока нет"
+    else:
+        lines = []
+        for r in rows:
+            dt = r["purchased_at"].strftime("%d.%m %H:%M")
+            name = r["full_name"] or r["username"] or str(r["user_id"])
+            lines.append(f"• {dt} — {name}\n  {r['product_title']} — {r['amount']} ⭐")
+        text = "💰 Последние 10 покупок:\n\n" + "\n\n".join(lines)
+    await callback.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="◀️ Назад", callback_data="admin_back")]
+        ])
+    )
+    await callback.answer()
+
+
+BROADCAST_PENDING = {}
+
+
+@dp.callback_query(F.data == "admin_broadcast")
+async def admin_broadcast_start(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+    BROADCAST_PENDING[callback.from_user.id] = True
+    await callback.message.edit_text(
+        "📢 Напиши текст рассылки — отправлю всем пользователям.\n\nПросто напиши сообщение в чат:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="◀️ Отмена", callback_data="admin_back")]
+        ])
+    )
+    await callback.answer()
+
+
+SEND_WB_PENDING = {}
+
+
+@dp.callback_query(F.data == "admin_send_wb")
+async def admin_send_wb_start(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+    SEND_WB_PENDING[callback.from_user.id] = True
+    await callback.message.edit_text(
+        "🎁 Напиши в формате:\n\nUSER_ID ключ_воркбука\n\nНапример:\n123456789 burnout\n\nКлючи: " + ", ".join(CATALOG.keys()),
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="◀️ Отмена", callback_data="admin_back")]
+        ])
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "admin_back")
+async def admin_back(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+    BROADCAST_PENDING.pop(callback.from_user.id, None)
+    SEND_WB_PENDING.pop(callback.from_user.id, None)
+    await callback.message.edit_text(
+        "🔧 Панель администратора BZH Academy",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
+            [InlineKeyboardButton(text="🔥 Активные стрики", callback_data="admin_streaks")],
+            [InlineKeyboardButton(text="💰 Последние покупки", callback_data="admin_purchases")],
+            [InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")],
+            [InlineKeyboardButton(text="🎁 Выдать воркбук", callback_data="admin_send_wb")],
+        ])
+    )
+    await callback.answer()
 
 
 # ─── Язык ───────────────────────────────────────────────────────────────────────
 
 @dp.callback_query(F.data == "choose_lang")
 async def choose_lang(callback: CallbackQuery):
-    lang = get_lang(callback.from_user.id)
+    lang = await get_lang(callback.from_user.id)
     await callback.message.edit_text(
         T[lang]["choose_lang"],
         reply_markup=lang_keyboard()
@@ -415,6 +553,7 @@ async def choose_lang(callback: CallbackQuery):
 async def set_lang(callback: CallbackQuery):
     lang = callback.data.replace("set_lang_", "")
     USER_LANG[callback.from_user.id] = lang
+    await set_user_lang(callback.from_user.id, lang)
     t = T[lang]
     phrase = random.choice(WELCOME_TEXTS[lang])
     await callback.message.edit_text(
@@ -429,7 +568,7 @@ async def set_lang(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "back_main")
 async def back_main(callback: CallbackQuery):
-    lang = get_lang(callback.from_user.id)
+    lang = await get_lang(callback.from_user.id)
     phrase = random.choice(WELCOME_TEXTS[lang])
     t = T[lang]
     await callback.message.edit_text(
@@ -442,7 +581,7 @@ async def back_main(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "catalog")
 async def show_catalog(callback: CallbackQuery):
-    lang = get_lang(callback.from_user.id)
+    lang = await get_lang(callback.from_user.id)
     await callback.message.edit_text(
         T[lang]["catalog_title"],
         parse_mode="Markdown",
@@ -453,7 +592,7 @@ async def show_catalog(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "cat_popular")
 async def show_popular(callback: CallbackQuery):
-    lang = get_lang(callback.from_user.id)
+    lang = await get_lang(callback.from_user.id)
     t = T[lang]
     text = t["popular_title"]
     for key in POPULAR:
@@ -471,7 +610,7 @@ async def show_popular(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "cat_categories")
 async def show_categories(callback: CallbackQuery):
-    lang = get_lang(callback.from_user.id)
+    lang = await get_lang(callback.from_user.id)
     await callback.message.edit_text(
         T[lang]["choose_category"],
         parse_mode="Markdown",
@@ -482,7 +621,7 @@ async def show_categories(callback: CallbackQuery):
 
 @dp.callback_query(F.data.startswith("category_"))
 async def show_category(callback: CallbackQuery):
-    lang = get_lang(callback.from_user.id)
+    lang = await get_lang(callback.from_user.id)
     key = callback.data.replace("category_", "")
     cat = CATEGORIES.get(key)
     keys = CATEGORY_MAP.get(key, [])
@@ -506,7 +645,7 @@ async def show_category(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "cat_search")
 async def show_search(callback: CallbackQuery):
-    lang = get_lang(callback.from_user.id)
+    lang = await get_lang(callback.from_user.id)
     t = T[lang]
     if lang == "uk":
         problems = list(PROBLEM_SEARCH_UK.keys())
@@ -526,7 +665,7 @@ async def show_search(callback: CallbackQuery):
 
 @dp.callback_query(F.data.startswith("search_"))
 async def show_search_result_ru(callback: CallbackQuery):
-    lang = get_lang(callback.from_user.id)
+    lang = await get_lang(callback.from_user.id)
     t = T[lang]
     problem = callback.data.replace("search_", "")
     keys = PROBLEM_SEARCH.get(problem, [])
@@ -572,7 +711,7 @@ async def show_search_result_uk(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "cat_all")
 async def show_all(callback: CallbackQuery):
-    lang = get_lang(callback.from_user.id)
+    lang = await get_lang(callback.from_user.id)
     t = T[lang]
     text = t["all_title"]
     for item in CATALOG.values():
@@ -588,7 +727,7 @@ async def show_all(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "about")
 async def show_about(callback: CallbackQuery):
-    lang = get_lang(callback.from_user.id)
+    lang = await get_lang(callback.from_user.id)
     t = T[lang]
     await callback.message.edit_text(
         t["about_text"],
@@ -605,7 +744,7 @@ async def show_about(callback: CallbackQuery):
 
 @dp.callback_query(F.data.startswith("buy_"))
 async def buy_workbook(callback: CallbackQuery):
-    lang = get_lang(callback.from_user.id)
+    lang = await get_lang(callback.from_user.id)
     key = callback.data.replace("buy_", "")
     item = CATALOG.get(key)
     if not item:
@@ -627,7 +766,7 @@ async def buy_workbook(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "subscription")
 async def show_subscription(callback: CallbackQuery):
-    lang = get_lang(callback.from_user.id)
+    lang = await get_lang(callback.from_user.id)
     t = T[lang]
     await callback.message.edit_text(
         t["sub_text"],
@@ -680,34 +819,38 @@ async def pre_checkout(query: PreCheckoutQuery):
 
 @dp.message(F.successful_payment)
 async def successful_payment(message: Message):
+    import datetime
     payload = message.successful_payment.invoice_payload
     user = message.from_user
-    lang = get_lang(user.id)
+    lang = await get_lang(user.id)
     t = T[lang]
+    amount = message.successful_payment.total_amount
 
     logger.info(f"Оплата: user={user.id} ({user.username}), payload={payload}")
 
     await bot.send_message(
         ADMIN_ID,
-        f"💰 *Новая оплата!*\n\n"
+        f"💰 Новая оплата!\n\n"
         f"Пользователь: {user.full_name} (@{user.username})\n"
-        f"ID: `{user.id}`\n"
-        f"Товар: `{payload}`\n"
-        f"Сумма: {message.successful_payment.total_amount} ⭐",
-        parse_mode="Markdown"
+        f"ID: {user.id}\n"
+        f"Товар: {payload}\n"
+        f"Сумма: {amount} ⭐\n"
+        f"Время: {datetime.datetime.now().strftime('%d.%m.%Y %H:%M')}"
     )
 
     if payload.startswith("workbook_"):
         key = payload.replace("workbook_", "")
         item = CATALOG.get(key)
         if item and item.get("pdf_path"):
+            title = item.get("title_uk", item["title"]) if lang == "uk" else item["title"]
+            await save_purchase(user.id, user.username, user.full_name, key, title, amount)
             await message.answer(t["payment_ok"], parse_mode="Markdown")
             try:
                 with open(item["pdf_path"], "rb") as pdf:
                     await bot.send_document(
                         message.chat.id,
-                        document=BufferedInputFile(pdf.read(), filename=f"{item['title']}.pdf"),
-                        caption=f"📖 {item['title']} | BZH Academy"
+                        document=BufferedInputFile(pdf.read(), filename=f"{title}.pdf"),
+                        caption=f"📖 {title} | BZH Academy"
                     )
             except FileNotFoundError:
                 logger.error(f"PDF не найден: {item['pdf_path']}")
@@ -717,6 +860,7 @@ async def successful_payment(message: Message):
 
     elif payload in ("subscription_2m", "subscription_year"):
         label = t["sub_2m_label"] if payload == "subscription_2m" else t["sub_year_label"]
+        await save_purchase(user.id, user.username, user.full_name, payload, f"Библиотека — {label}", amount)
         await message.answer(t["sub_ok"].format(label=label), parse_mode="Markdown")
         for item in CATALOG.values():
             if item.get("pdf_path"):
@@ -736,17 +880,43 @@ async def successful_payment(message: Message):
 @dp.callback_query(F.data == "streak")
 async def show_streak(callback: CallbackQuery):
     import datetime
-    lang = get_lang(callback.from_user.id)
+    lang = await get_lang(callback.from_user.id)
     t = T[lang]
     user_id = callback.from_user.id
-    user = get_user(user_id)
+    user = await get_user_streak(user_id)
     today_str = str(datetime.date.today())
-    done_today = user["last_date"] == today_str
+    done_today = str(user["last_date"]) == today_str if user["last_date"] else False
     pending = user.get("pending_approval", False)
 
-    status = streak_status(user_id, lang=lang)
-    task = random.choice(DAILY_TASKS[lang])
+    streak = user["streak"]
+    goal = STREAK_GOAL
+    bar = progress_bar(streak)
 
+    if lang == "uk":
+        from streak import _day_uk
+        day_word = _day_uk
+    else:
+        from streak import _day_ru
+        day_word = _day_ru
+
+    if pending:
+        if lang == "uk":
+            status = f"🔥 *Твій стрік: {streak} {day_word(streak)}*\n\n{bar}\n\n⏳ _Звіт надіслано — очікуй підтвердження._"
+        else:
+            status = f"🔥 *Твой стрик: {streak} {day_word(streak)}*\n\n{bar}\n\n⏳ _Отчёт отправлен — ожидай подтверждения._"
+    elif streak == 0:
+        if lang == "uk":
+            status = f"🔥 *Твій стрік: 0 днів*\n\n{bar}\n\nВиконай сьогоднішнє завдання і надішли звіт!\n_{goal} днів поспіль = безкоштовний воркбук_ 🎁"
+        else:
+            status = f"🔥 *Твой стрик: 0 дней*\n\n{bar}\n\nВыполни задание и отправь отчёт!\n_{goal} дней подряд = бесплатный воркбук_ 🎁"
+    else:
+        remaining = goal - (streak % goal) if streak % goal != 0 else 0
+        if lang == "uk":
+            status = f"🔥 *Твій стрік: {streak} {day_word(streak)}*\n\n{bar}\n\nДо безкоштовного воркбуку: *{remaining} {day_word(remaining)}* 🎁\n_Не переривай стрік — повертайся завтра!_"
+        else:
+            status = f"🔥 *Твой стрик: {streak} {day_word(streak)}*\n\n{bar}\n\nДо бесплатного воркбука: *{remaining} {day_word(remaining)}* 🎁\n_Не прерывай стрик — возвращайся завтра!_"
+
+    task = random.choice(DAILY_TASKS[lang])
     text = status + "\n\n"
     if done_today:
         text += t["done_today"]
@@ -765,7 +935,7 @@ async def show_streak(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "send_report")
 async def ask_for_report(callback: CallbackQuery):
-    lang = get_lang(callback.from_user.id)
+    lang = await get_lang(callback.from_user.id)
     t = T[lang]
     user_id = callback.from_user.id
     await callback.message.edit_text(
@@ -783,23 +953,64 @@ async def ask_for_report(callback: CallbackQuery):
 @dp.message(F.text & ~F.text.startswith("/"))
 async def handle_report(message: Message):
     user_id = message.from_user.id
+
+    # Рассылка
+    if user_id == ADMIN_ID and BROADCAST_PENDING.get(user_id):
+        BROADCAST_PENDING.pop(user_id)
+        users = await get_all_users()
+        sent = 0
+        failed = 0
+        for u in users:
+            try:
+                await bot.send_message(u["user_id"], message.text)
+                sent += 1
+            except Exception:
+                failed += 1
+        await message.answer(f"📢 Рассылка завершена!\nОтправлено: {sent}\nОшибок: {failed}")
+        return
+
+    # Выдача воркбука вручную
+    if user_id == ADMIN_ID and SEND_WB_PENDING.get(user_id):
+        SEND_WB_PENDING.pop(user_id)
+        try:
+            parts = message.text.strip().split()
+            target_id = int(parts[0])
+            key = parts[1]
+            item = CATALOG.get(key)
+            if not item:
+                await message.answer(f"Воркбук '{key}' не найден. Ключи: {', '.join(CATALOG.keys())}")
+                return
+            with open(item["pdf_path"], "rb") as pdf:
+                await bot.send_document(
+                    target_id,
+                    document=BufferedInputFile(pdf.read(), filename=f"{item['title']}.pdf"),
+                    caption=f"🎁 {item['title']} | BZH Academy"
+                )
+            await message.answer(f"✅ Воркбук {item['title']} отправлен пользователю {target_id}")
+        except Exception as e:
+            await message.answer(f"❌ Ошибка: {e}")
+        return
+
+    # Отчёт по стрику
     if user_id not in WAITING_REPORT:
         return
-    lang = get_lang(user_id)
+    lang = await get_lang(user_id)
     t = T[lang]
     task = WAITING_REPORT.pop(user_id)
     user = message.from_user
-    set_pending(user_id)
+
+    await set_pending(user_id, message.text)
+    await save_report(user_id, user.username, user.full_name, task, message.text)
+    await upsert_user(user_id, user.username, user.full_name)
 
     await message.answer(t["report_sent"], parse_mode="Markdown")
     await bot.send_message(
         ADMIN_ID,
-        f"📋 *Новый отчёт*\n\n"
+        f"📋 Новый отчёт\n\n"
         f"👤 {user.full_name} (@{user.username})\n"
-        f"ID: `{user_id}`\n\n"
-        f"📌 *Задание:*\n_{task}_\n\n"
-        f"✍️ *Отчёт:*\n{message.text}",
-        parse_mode="Markdown",
+        f"ID: {user_id}\n\n"
+        f"📌 Задание:\n{task}\n\n"
+        f"✍️ Отчёт:\n{message.text}",
         reply_markup=admin_approve_keyboard(user_id)
     )
 
@@ -810,16 +1021,16 @@ async def approve_report(callback: CallbackQuery):
         await callback.answer("Нет доступа.", show_alert=True)
         return
     user_id = int(callback.data.replace("approve_", ""))
-    result = approve_checkin(user_id)
+    result = await approve_checkin(user_id)
     streak = result["streak"]
+    from streak import _day_ru
 
     if result["reward"]:
         await bot.send_message(
             user_id,
-            f"🎉 *{streak} дней подряд — ты сделал это!*\n\n"
+            f"🎉 {streak} дней подряд — ты сделал это!\n\n"
             f"{'🔥' * STREAK_GOAL}\n\n"
             f"Выбери воркбук, который получишь бесплатно 👇",
-            parse_mode="Markdown",
             reply_markup=reward_keyboard()
         )
     else:
@@ -827,16 +1038,10 @@ async def approve_report(callback: CallbackQuery):
         remaining = STREAK_GOAL - (streak % STREAK_GOAL)
         await bot.send_message(
             user_id,
-            f"✅ *Стрик засчитан! День {streak}*\n\n"
-            f"{bar}\n\n"
-            f"_До бесплатного воркбука: {remaining} {'день' if remaining == 1 else 'дня' if 2 <= remaining <= 4 else 'дней'}_",
-            parse_mode="Markdown"
+            f"✅ Стрик засчитан! День {streak}\n\n{bar}\n\nДо бесплатного воркбука: {remaining} {_day_ru(remaining)}"
         )
 
-    await callback.message.edit_text(
-        callback.message.text + "\n\n✅ *Засчитано*",
-        parse_mode="Markdown"
-    )
+    await callback.message.edit_text(callback.message.text + "\n\n✅ Засчитано")
     await callback.answer("Стрик засчитан!")
 
 
@@ -846,28 +1051,23 @@ async def reject_report(callback: CallbackQuery):
         await callback.answer("Нет доступа.", show_alert=True)
         return
     user_id = int(callback.data.replace("reject_", ""))
-    lang = get_lang(user_id)
-    reject_checkin(user_id)
+    lang = await get_lang(user_id)
+    await reject_checkin(user_id)
 
     await bot.send_message(
         user_id,
-        "❌ *Отчёт не принят*\n\n"
-        "_Попробуй выполнить задание глубже и отправь новый отчёт._",
-        parse_mode="Markdown",
+        "❌ Отчёт не принят\n\nПопробуй выполнить задание глубже и отправь новый отчёт.",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text=T[lang]["my_streak"], callback_data="streak")]
         ])
     )
-    await callback.message.edit_text(
-        callback.message.text + "\n\n❌ *Отклонено*",
-        parse_mode="Markdown"
-    )
+    await callback.message.edit_text(callback.message.text + "\n\n❌ Отклонено")
     await callback.answer("Отчёт отклонён.")
 
 
 @dp.callback_query(F.data.startswith("reward_"))
 async def send_reward(callback: CallbackQuery):
-    lang = get_lang(callback.from_user.id)
+    lang = await get_lang(callback.from_user.id)
     t = T[lang]
     key = callback.data.replace("reward_", "")
     item = CATALOG.get(key)
@@ -907,6 +1107,8 @@ async def send_reward(callback: CallbackQuery):
 
 async def main():
     logger.info("BZH Academy Bot запущен")
+    await init_db()
+    logger.info("База данных инициализирована")
     await dp.start_polling(bot)
 
 
