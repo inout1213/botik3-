@@ -1,7 +1,7 @@
 """
 BZH Academy — Telegram Sales Bot
 Оплата: Telegram Stars | Доставка: PDF сразу после оплаты
-"""
+""" 
 
 import asyncio
 import logging
