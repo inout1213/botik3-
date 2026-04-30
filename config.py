@@ -1,298 +1,270 @@
 """
-database.py — работа с PostgreSQL для BZH Academy
+config.py — настройки бота BZH Academy
+Заполни все поля перед запуском.
 """
 
-import asyncpg
-import os
-from datetime import date, timedelta, datetime
+# ─── Токен бота ─────────────────────────────────────────────────────────────────
+BOT_TOKEN = "8166010240:AAHZTJnqt-QFN4xCAQ8vgVcJnVmgpVoJx8c"
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:OzdENPEKrIhiVmialxSSPZKWFfcjhJfr@postgres.railway.internal:5432/railway")
+# ─── Твой Telegram ID ───────────────────────────────────────────────────────────
+ADMIN_ID = 8684418508
 
-STREAK_GOAL = 5
+# ─── Категории ──────────────────────────────────────────────────────────────────
+CATEGORIES = {
+    "mind": {
+        "emoji": "🧠",
+        "title": "Мышление и решения",
+        "title_uk": "Мислення і рішення",
+    },
+    "emotions": {
+        "emoji": "❤️",
+        "title": "Эмоции и состояния",
+        "title_uk": "Емоції і стани",
+    },
+    "relations": {
+        "emoji": "🤝",
+        "title": "Отношения",
+        "title_uk": "Стосунки",
+    },
+    "efficiency": {
+        "emoji": "⚡",
+        "title": "Продуктивность",
+        "title_uk": "Продуктивність",
+    },
+}
 
-_pool = None
+# Воркбуки по категориям
+CATEGORY_MAP = {
+    "mind": ["uncertainty", "decisions", "imposter", "self_doubt"],
+    "emotions": ["burnout", "motivation", "loneliness"],
+    "relations": ["conflict", "toxic_relationships"],
+    "efficiency": ["productivity", "procrastination"],
+}
 
+# ─── Популярные воркбуки ────────────────────────────────────────────────────────
+POPULAR = ["uncertainty", "burnout", "motivation", "productivity", "self_doubt"]
 
-async def get_pool():
-    global _pool
-    if _pool is None:
-        _pool = await asyncpg.create_pool(DATABASE_URL)
-    return _pool
+# ─── Поиск по проблеме ──────────────────────────────────────────────────────────
+PROBLEM_SEARCH = {
+    "не могу начать": ["procrastination", "motivation", "self_doubt"],
+    "тревога": ["uncertainty", "self_doubt", "burnout"],
+    "устал": ["burnout", "productivity", "motivation"],
+    "конфликт": ["conflict", "toxic_relationships"],
+    "не уверен": ["self_doubt", "imposter", "motivation"],
+    "одиноко": ["loneliness", "toxic_relationships"],
+    "не могу решить": ["decisions", "uncertainty"],
+    "выгорел": ["burnout", "motivation", "productivity"],
+    "токсичные": ["toxic_relationships", "conflict"],
+}
 
+# ─── Каталог воркбуков ──────────────────────────────────────────────────────────
+CATALOG = {
+    "uncertainty": {
+        "emoji": "🌫",
+        "title": "Протокол: Неопределённость",
+        "title_uk": "Протокол: Невизначеність",
+        "description": (
+            "Ты застрял — не потому что слабый. "
+            "Потому что мозг эволюционно не создан для неизвестности. "
+            "Внутри: почему тревога — это биология, и как принимать решения "
+            "когда ответов нет."
+        ),
+        "description_uk": (
+            "Ти застряг — не тому що слабкий. "
+            "Тому що мозок еволюційно не створений для невизначеності. "
+            "Всередині: чому тривога — це біологія, і як приймати рішення "
+            "коли відповідей немає."
+        ),
+        "price": 1,
+        "pdf_path": "pdfs/НЕОПРЕДЕЛЁННОСТЬ.pdf",
+    },
+    "productivity": {
+        "emoji": "⚡",
+        "title": "Протокол: Продуктивность",
+        "title_uk": "Протокол: Продуктивність",
+        "description": (
+            "Ты работаешь весь день — но к вечеру ощущение, что ничего не сделал. "
+            "Это не лень. Это ложная продуктивность. "
+            "Внутри: система, которая реально работает — без силы воли и мотивации."
+        ),
+        "description_uk": (
+            "Ти працюєш весь день — але ввечері відчуття, що нічого не зробив. "
+            "Це не лінь. Це хибна продуктивність. "
+            "Всередині: система, яка реально працює — без сили волі і мотивації."
+        ),
+        "price": 375,
+        "pdf_path": "pdfs/ПРОДУКТИВНОСТЬ.pdf",
+    },
+    "procrastination": {
+        "emoji": "⏳",
+        "title": "Протокол: Прокрастинация",
+        "title_uk": "Протокол: Прокрастинація",
+        "description": (
+            "Ты знаешь, что надо сделать. Не делаешь. И чувствуешь себя плохо. "
+            "Это не лень и не слабость — это стратегия управления эмоциями. "
+            "Внутри: нейробиология откладывания и система, которая реально работает."
+        ),
+        "description_uk": (
+            "Ти знаєш, що треба зробити. Не робиш. І почуваєшся погано. "
+            "Це не лінь і не слабкість — це стратегія управління емоціями. "
+            "Всередині: нейробіологія відкладання і система, яка реально працює."
+        ),
+        "price": 375,
+        "pdf_path": "pdfs/ПРОКРАСТИНАЦИЯ.pdf",
+    },
+    "imposter": {
+        "emoji": "🎭",
+        "title": "Протокол: Самозванец",
+        "title_uk": "Протокол: Самозванець",
+        "description": (
+            "Успех есть — а ощущение, что тебя вот-вот разоблачат. "
+            "Так живут больше 70% людей, включая Майю Ангелу и Мишель Обаму. "
+            "Внутри: почему мозг мешает присвоить свой успех — и как это исправить."
+        ),
+        "description_uk": (
+            "Успіх є — а відчуття, що тебе ось-ось викриють. "
+            "Так живуть більше 70% людей, включаючи Майю Ангелу і Мішель Обаму. "
+            "Всередині: чому мозок заважає привласнити свій успіх — і як це виправити."
+        ),
+        "price": 375,
+        "pdf_path": "pdfs/САМОЗВАНЕЦ.pdf",
+    },
+    "decisions": {
+        "emoji": "🧭",
+        "title": "Протокол: Решения",
+        "title_uk": "Протокол: Рішення",
+        "description": (
+            "Канеман выявил 200 когнитивных ловушек, которые уводят нас от разумного выбора. "
+            "Внутри: как работают Система 1 и Система 2, какие искажения управляют тобой — "
+            "и техники, которые реально помогают принимать лучшие решения."
+        ),
+        "description_uk": (
+            "Канеман виявив 200 когнітивних пасток, які відводять нас від розумного вибору. "
+            "Всередині: як працюють Система 1 і Система 2, які викривлення керують тобою — "
+            "і техніки, які реально допомагають приймати кращі рішення."
+        ),
+        "price": 375,
+        "pdf_path": "pdfs/РЕШЕНИЯ.pdf",
+    },
+    "loneliness": {
+        "emoji": "🌿",
+        "title": "Протокол: Одиночество",
+        "title_uk": "Протокол: Самотність",
+        "description": (
+            "Одиночество — не отсутствие людей. Это отсутствие значимой связи с ними. "
+            "Хроническое одиночество вреднее курения. И оно поддаётся лечению. "
+            "Внутри: нейробиология привязанности и как строить связи, которые держат."
+        ),
+        "description_uk": (
+            "Самотність — не відсутність людей. Це відсутність значущого зв'язку з ними. "
+            "Хронічна самотність шкідливіша за куріння. І вона піддається лікуванню. "
+            "Всередині: нейробіологія прив'язаності і як будувати зв'язки, які тримають."
+        ),
+        "price": 375,
+        "pdf_path": "pdfs/ОДИНОЧЕСТВО.pdf",
+    },
+    "toxic_relationships": {
+        "emoji": "⚠️",
+        "title": "Протокол: Токсичные отношения",
+        "title_uk": "Протокол: Токсичні стосунки",
+        "description": (
+            "Сложность не в том, чтобы признать токсичность. "
+            "Сложность в том, что мозг привязывается к боли так же, как к любви. "
+            "Внутри: газлайтинг, травматическая привязанность и план выхода."
+        ),
+        "description_uk": (
+            "Складність не в тому, щоб визнати токсичність. "
+            "Складність у тому, що мозок прив'язується до болю так само, як до любові. "
+            "Всередині: газлайтинг, травматична прив'язаність і план виходу."
+        ),
+        "price": 375,
+        "pdf_path": "pdfs/ТОКСИЧНЫЕ ОТНОШЕНИЯ.pdf",
+    },
+    "burnout": {
+        "emoji": "🔥",
+        "title": "Протокол: Выгорание",
+        "title_uk": "Протокол: Вигорання",
+        "description": (
+            "Отпуск не помог. Ты вернулся — и всё то же самое. "
+            "Это не усталость. Это выгорание — физиологические изменения в мозге. "
+            "Внутри: три компонента Маслач, шесть зон несоответствия и система на 3–6 месяцев."
+        ),
+        "description_uk": (
+            "Відпустка не допомогла. Ти повернувся — і все те саме. "
+            "Це не втома. Це вигорання — фізіологічні зміни в мозку. "
+            "Всередині: три компоненти Маслач, шість зон невідповідності і система на 3–6 місяців."
+        ),
+        "price": 375,
+        "pdf_path": "pdfs/ВЫГОРАНИЕ.pdf",
+    },
+    "conflict": {
+        "emoji": "🤝",
+        "title": "Протокол: Конфликтология",
+        "title_uk": "Протокол: Конфліктологія",
+        "description": (
+            "Разрушают отношения не конфликты — а то, как мы себя ведём во время них. "
+            "Готтман предсказывал развод с точностью 90% по одному разговору. "
+            "Внутри: четыре всадника, метод Розенберга и как выходить из ссоры, сохраняя обоих."
+        ),
+        "description_uk": (
+            "Руйнують стосунки не конфлікти — а те, як ми себе поводимо під час них. "
+            "Готтман передбачав розлучення з точністю 90% по одній розмові. "
+            "Всередині: чотири вершники, метод Розенберга і як виходити зі сварки, зберігаючи обох."
+        ),
+        "price": 375,
+        "pdf_path": "pdfs/КОНФЛИКТОЛОГИЯ.pdf",
+    },
+    "motivation": {
+        "emoji": "🚀",
+        "title": "Протокол: Мотивация",
+        "title_uk": "Протокол: Мотивація",
+        "description": (
+            "Дофамин — это не гормон удовольствия. Это гормон предвкушения. "
+            "Вот почему мотивация пропадает сразу после достижения цели. "
+            "Внутри: как работает система вознаграждения мозга и как создать мотивацию, которая держит."
+        ),
+        "description_uk": (
+            "Дофамін — це не гормон задоволення. Це гормон передчуття. "
+            "Ось чому мотивація зникає одразу після досягнення мети. "
+            "Всередині: як працює система винагороди мозку і як створити мотивацію, яка тримає."
+        ),
+        "price": 375,
+        "pdf_path": "pdfs/МОТИВАЦИЯ.pdf",
+    },
+    "self_doubt": {
+        "emoji": "🛡",
+        "title": "Протокол: Неуверенность",
+        "title_uk": "Протокол: Невпевненість",
+        "description": (
+            "Неуверенность — не характер и не судьба. Это усвоенный паттерн. "
+            "А усвоенное — меняется. "
+            "Внутри: выученная беспомощность, внутренний критик и четыре источника уверенности по Бандуре."
+        ),
+        "description_uk": (
+            "Невпевненість — не характер і не доля. Це засвоєний патерн. "
+            "А засвоєне — змінюється. "
+            "Всередині: вивчена безпорадність, внутрішній критик і чотири джерела впевненості за Бандурою."
+        ),
+        "price": 375,
+        "pdf_path": "pdfs/НЕУВЕРЕННОСТЬ.pdf",
+    },
+}
 
-async def init_db():
-    """Создаёт таблицы если их нет."""
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                user_id BIGINT PRIMARY KEY,
-                username TEXT,
-                full_name TEXT,
-                lang TEXT DEFAULT 'ru',
-                created_at TIMESTAMP DEFAULT NOW()
-            )
-        """)
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS purchases (
-                id SERIAL PRIMARY KEY,
-                user_id BIGINT,
-                username TEXT,
-                full_name TEXT,
-                product_key TEXT,
-                product_title TEXT,
-                amount INTEGER,
-                purchased_at TIMESTAMP DEFAULT NOW()
-            )
-        """)
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS streaks (
-                user_id BIGINT PRIMARY KEY,
-                streak INTEGER DEFAULT 0,
-                last_date DATE,
-                total_completed INTEGER DEFAULT 0,
-                rewards_claimed INTEGER DEFAULT 0,
-                pending_approval BOOLEAN DEFAULT FALSE,
-                last_report TEXT,
-                updated_at TIMESTAMP DEFAULT NOW()
-            )
-        """)
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS reports (
-                id SERIAL PRIMARY KEY,
-                user_id BIGINT,
-                username TEXT,
-                full_name TEXT,
-                task TEXT,
-                report_text TEXT,
-                status TEXT DEFAULT 'pending',
-                created_at TIMESTAMP DEFAULT NOW()
-            )
-        """)
+# ─── Подписка на библиотеку ─────────────────────────────────────────────────────
+SUBSCRIPTION_2M = {
+    "title": "Библиотека BZH Academy — 2 месяца",
+    "description": (
+        "Все воркбуки сразу + все новые в течение 2 месяцев. "
+        "Неопределённость, Продуктивность и всё, что выйдет."
+    ),
+    "price": 1500,
+}
 
-
-# ─── Пользователи ───────────────────────────────────────────────────────────────
-
-async def upsert_user(user_id: int, username: str, full_name: str, lang: str = "ru"):
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute("""
-            INSERT INTO users (user_id, username, full_name, lang)
-            VALUES ($1, $2, $3, $4)
-            ON CONFLICT (user_id) DO UPDATE
-            SET username = $2, full_name = $3
-        """, user_id, username or "", full_name or "")
-
-
-async def set_user_lang(user_id: int, lang: str):
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute("""
-            INSERT INTO users (user_id, lang) VALUES ($1, $2)
-            ON CONFLICT (user_id) DO UPDATE SET lang = $2
-        """, user_id, lang)
-
-
-async def get_user_lang(user_id: int) -> str:
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT lang FROM users WHERE user_id = $1", user_id)
-        return row["lang"] if row else "ru"
-
-
-async def get_all_users():
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        return await conn.fetch("SELECT user_id, username, full_name FROM users")
-
-
-async def get_users_count() -> int:
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        return await conn.fetchval("SELECT COUNT(*) FROM users")
-
-
-# ─── Покупки ────────────────────────────────────────────────────────────────────
-
-async def save_purchase(user_id: int, username: str, full_name: str, product_key: str, product_title: str, amount: int):
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute("""
-            INSERT INTO purchases (user_id, username, full_name, product_key, product_title, amount)
-            VALUES ($1, $2, $3, $4, $5, $6)
-        """, user_id, username or "", full_name or "", product_key, product_title, amount)
-
-
-async def get_purchases_count() -> int:
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        return await conn.fetchval("SELECT COUNT(*) FROM purchases")
-
-
-async def get_purchases_today() -> int:
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        return await conn.fetchval(
-            "SELECT COUNT(*) FROM purchases WHERE purchased_at::date = CURRENT_DATE"
-        )
-
-
-async def get_top_products():
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        return await conn.fetch("""
-            SELECT product_title, COUNT(*) as cnt
-            FROM purchases
-            GROUP BY product_title
-            ORDER BY cnt DESC
-            LIMIT 5
-        """)
-
-
-async def get_recent_purchases(limit: int = 10):
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        return await conn.fetch("""
-            SELECT user_id, username, full_name, product_title, amount, purchased_at
-            FROM purchases
-            ORDER BY purchased_at DESC
-            LIMIT $1
-        """, limit)
-
-
-# ─── Стрики ─────────────────────────────────────────────────────────────────────
-
-async def get_user_streak(user_id: int) -> dict:
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT * FROM streaks WHERE user_id = $1", user_id)
-        if not row:
-            await conn.execute("""
-                INSERT INTO streaks (user_id) VALUES ($1)
-                ON CONFLICT DO NOTHING
-            """, user_id)
-            return {
-                "streak": 0, "last_date": None, "total_completed": 0,
-                "rewards_claimed": 0, "pending_approval": False, "last_report": None
-            }
-        return dict(row)
-
-
-async def set_pending(user_id: int, report_text: str = None):
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute("""
-            INSERT INTO streaks (user_id, pending_approval, last_report)
-            VALUES ($1, TRUE, $2)
-            ON CONFLICT (user_id) DO UPDATE
-            SET pending_approval = TRUE, last_report = $2, updated_at = NOW()
-        """, user_id, report_text)
-
-
-async def save_report(user_id: int, username: str, full_name: str, task: str, report_text: str):
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute("""
-            INSERT INTO reports (user_id, username, full_name, task, report_text)
-            VALUES ($1, $2, $3, $4, $5)
-        """, user_id, username or "", full_name or "", task, report_text)
-
-
-async def approve_checkin(user_id: int) -> dict:
-    pool = await get_pool()
-    today = date.today()
-    yesterday = today - timedelta(days=1)
-
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT * FROM streaks WHERE user_id = $1", user_id)
-        if not row:
-            user = {"streak": 0, "last_date": None, "total_completed": 0, "rewards_claimed": 0}
-        else:
-            user = dict(row)
-
-        if user["last_date"] == today:
-            return {"already_done": True, "streak": user["streak"], "reward": False}
-
-        streak_broken = False
-        if user["last_date"] == yesterday:
-            new_streak = user["streak"] + 1
-        else:
-            if user["streak"] > 0:
-                streak_broken = True
-            new_streak = 1
-
-        new_total = user["total_completed"] + 1
-        reward = False
-        new_rewards = user["rewards_claimed"]
-
-        if new_streak % STREAK_GOAL == 0:
-            reward = True
-            new_rewards += 1
-
-        await conn.execute("""
-            INSERT INTO streaks (user_id, streak, last_date, total_completed, rewards_claimed, pending_approval, updated_at)
-            VALUES ($1, $2, $3, $4, $5, FALSE, NOW())
-            ON CONFLICT (user_id) DO UPDATE
-            SET streak = $2, last_date = $3, total_completed = $4,
-                rewards_claimed = $5, pending_approval = FALSE, updated_at = NOW()
-        """, user_id, new_streak, today, new_total, new_rewards)
-
-        return {
-            "already_done": False,
-            "streak": new_streak,
-            "reward": reward,
-            "streak_broken": streak_broken,
-        }
-
-
-async def reject_checkin(user_id: int):
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute("""
-            UPDATE streaks SET pending_approval = FALSE, updated_at = NOW()
-            WHERE user_id = $1
-        """, user_id)
-
-
-async def get_active_streaks():
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        return await conn.fetch("""
-            SELECT s.user_id, s.streak, s.last_date, u.username, u.full_name
-            FROM streaks s
-            LEFT JOIN users u ON s.user_id = u.user_id
-            WHERE s.streak > 0
-            ORDER BY s.streak DESC
-            LIMIT 10
-        """)
-
-
-# ─── Статистика ─────────────────────────────────────────────────────────────────
-
-async def get_stats() -> dict:
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        users = await conn.fetchval("SELECT COUNT(*) FROM users")
-        purchases_total = await conn.fetchval("SELECT COUNT(*) FROM purchases")
-        purchases_today = await conn.fetchval(
-            "SELECT COUNT(*) FROM purchases WHERE purchased_at::date = CURRENT_DATE"
-        )
-        revenue_total = await conn.fetchval("SELECT COALESCE(SUM(amount), 0) FROM purchases")
-        revenue_today = await conn.fetchval(
-            "SELECT COALESCE(SUM(amount), 0) FROM purchases WHERE purchased_at::date = CURRENT_DATE"
-        )
-        active_streaks = await conn.fetchval("SELECT COUNT(*) FROM streaks WHERE streak > 0")
-        top = await conn.fetch("""
-            SELECT product_title, COUNT(*) as cnt
-            FROM purchases GROUP BY product_title
-            ORDER BY cnt DESC LIMIT 3
-        """)
-        return {
-            "users": users,
-            "purchases_total": purchases_total,
-            "purchases_today": purchases_today,
-            "revenue_total": revenue_total,
-            "revenue_today": revenue_today,
-            "active_streaks": active_streaks,
-            "top_products": top,
-        }
+SUBSCRIPTION_YEAR = {
+    "title": "Библиотека BZH Academy — год",
+    "description": (
+        "Все воркбуки сразу + все новые в течение года. "
+        "Максимальная выгода — экономия более 50%."
+    ),
+    "price": 2500,
+}
