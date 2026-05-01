@@ -4,7 +4,7 @@ config.py — настройки бота BZH Academy
 """
 
 # ─── Токен бота ─────────────────────────────────────────────────────────────────
-BOT_TOKEN = "8166010240:AAHZTJnqt-QFN4xCAQ8vgVcJnVmgpVoJx8c"
+BOT_TOKEN = "8166010240:AAGz1uCWmGN-HCFMN_C6LFjIACFWk9-MpP4"
 
 # ─── Твой Telegram ID ───────────────────────────────────────────────────────────
 ADMIN_ID = 8684418508
